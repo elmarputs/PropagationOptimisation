@@ -331,30 +331,99 @@ int main( )
             std::make_shared< DependentVariableSaveSettings >( dependentVariablesList );
 
     // Define propagator type
-    TranslationalPropagatorType propagatorType = cowell;
+    TranslationalPropagatorType propagatorType;
+    std::shared_ptr< IntegratorSettings< > > integratorSettings;
 
-    // Create propagation settings.
-    std::shared_ptr< TranslationalStatePropagatorSettings< double > > propagatorSettings =
-            std::make_shared< TranslationalStatePropagatorSettings< double > >(
-                centralBodies, accelerationModelMap, bodiesToPropagate, systemInitialState,
-                terminationSettings, propagatorType, dependentVariablesToSave );
-    std::shared_ptr< IntegratorSettings< > > integratorSettings =
-            std::make_shared< IntegratorSettings< > >( rungeKutta4, simulationStartEpoch, fixedStepSize );
+    for( int integratorRun = 0; integratorRun < 3; integratorRun++ )
+    {
+        std::cout << "Running integrator case " << integratorRun << std::endl;
+        switch( integratorRun )
+        {
+            default:
+            case 0:
+                // Benchmark
+                integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch,
+                        10.0, RungeKuttaCoefficients::rungeKuttaFehlberg78, 0.01, 100.0, 1e-14, 1e-14);
+                std::cout << "Runge-Kutta7(8) integrator" << std::endl;
+                break;
+            case 1:
+                integratorSettings = std::make_shared< AdamsBashforthMoultonSettings< > >( simulationStartEpoch,
+                        10.0, 0.1, 100.0, 1e-10, 1e-10);
+                std::cout << "ABM integrator" << std::endl;
+                break;
+            case 2:
+                integratorSettings = std::make_shared< BulirschStoerIntegratorSettings< > >( simulationStartEpoch,
+                        10.0, ExtrapolationMethodStepSequences::bulirsch_stoer_sequence, 7, 0.01, 100.0, 1e-14, 1e-14);
+                std::cout << "Bulirsch-Stoer integrator" << std::endl;
+                break;
+        }
 
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ///////////////////////             PROPAGATE ORBIT            ////////////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        int numberOfPropagatorRuns = 1;
 
-    // Create simulation object and propagate dynamics.
-    SingleArcDynamicsSimulator< > dynamicsSimulator(
-                bodyMap, integratorSettings, propagatorSettings );
+        if( integratorRun == 3 )
+        {
+            numberOfPropagatorRuns = 7;
+        }
 
-    std::map< double, Eigen::VectorXd > propagatedStateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
-    std::map< double, Eigen::VectorXd > dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory( );
+        for( int propagatorRun = 0; propagatorRun < numberOfPropagatorRuns; propagatorRun++ )
+        {
+
+            switch( propagatorRun )
+            {
+                default:
+                case 0:
+                    propagatorType = cowell;
+                    std::cout << "Running Cowell propagator\n";
+                    break;
+                case 1:
+                    propagatorType = encke;
+                    std::cout << "Running Encke propagator\n";
+                    break;
+                case 2:
+                    propagatorType = gauss_keplerian;
+                    std::cout << "Running Kepler propagator\n";
+                    break;
+                case 3:
+                    propagatorType = gauss_modified_equinoctial;
+                    std::cout << "Running MEE propagator\n";
+                    break;
+                case 4:
+                    propagatorType = unified_state_model_quaternions;
+                    std::cout << "Running USM4 propagator\n";
+                    break;
+                case 5:
+                    propagatorType = unified_state_model_modified_rodrigues_parameters;
+                    std::cout << "Running USM MRP propagator\n";
+                    break;
+                case 6:
+                    propagatorType = unified_state_model_exponential_map;
+                    std::cout << "Running USM_EM propagator\n";
+                    break;
+            }
+
+            // Create propagation settings.
+            std::shared_ptr<TranslationalStatePropagatorSettings<double> > propagatorSettings =
+                    std::make_shared<TranslationalStatePropagatorSettings<double> >(
+                            centralBodies, accelerationModelMap, bodiesToPropagate, systemInitialState,
+                            terminationSettings, propagatorType, dependentVariablesToSave);
+
+            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            ///////////////////////             PROPAGATE ORBIT            ////////////////////////////////////////////////////////
+            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            // Create simulation object and propagate dynamics.
+            SingleArcDynamicsSimulator<> dynamicsSimulator(
+                    bodyMap, integratorSettings, propagatorSettings);
+
+            std::map<double, Eigen::VectorXd> propagatedStateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution();
+            std::map<double, Eigen::VectorXd> dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory();
 
 
-    input_output::writeDataMapToTextFile( propagatedStateHistory, "stateHistory.dat", outputPath );
-    input_output::writeDataMapToTextFile( dependentVariableHistory, "dependentVariables.dat", outputPath );
+            input_output::writeDataMapToTextFile(propagatedStateHistory, "stateHistory_" + std::to_string(integratorRun) + "_" + std::to_string(propagatorRun) + ".dat", outputPath);
+            input_output::writeDataMapToTextFile(dependentVariableHistory, "dependentVariables_" + std::to_string(integratorRun) + "_" + std::to_string(propagatorRun) + ".dat", outputPath);
+
+        }
+    }
 
     // The exit code EXIT_SUCCESS indicates that the program was successfully executed.
     return EXIT_SUCCESS;
