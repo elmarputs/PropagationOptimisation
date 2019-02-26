@@ -236,6 +236,7 @@ int main( )
     bodySettings[ "Earth" ]->rotationModelSettings->resetOriginalFrame( "J2000" );
     bodySettings[ "Earth" ]->ephemerisSettings->resetFrameOrientation( "J2000" );
 
+
     // Create Earth object
     simulation_setup::NamedBodyMap bodyMap = simulation_setup::createBodies( bodySettings );
 
@@ -334,33 +335,51 @@ int main( )
     TranslationalPropagatorType propagatorType;
     std::shared_ptr< IntegratorSettings< > > integratorSettings;
 
-    for( int integratorRun = 0; integratorRun < 3; integratorRun++ )
+    std::vector< std::map< double, Eigen::VectorXd > > propagationHistories;
+    std::vector< std::map< double, Eigen::VectorXd > > dependentVariableHistories;
+    std::shared_ptr<interpolators::OneDimensionalInterpolator<double, Eigen::VectorXd> > interpolator;
+    std::shared_ptr<interpolators::OneDimensionalInterpolator<double, Eigen::VectorXd> > depVarInterpolator;
+
+    for( int integratorRun = 0; integratorRun < 6; integratorRun++ )
     {
         std::cout << "Running integrator case " << integratorRun << std::endl;
         switch( integratorRun )
         {
             default:
             case 0:
-                // Benchmark
+                // Benchmark run
                 integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch,
-                        10.0, RungeKuttaCoefficients::rungeKuttaFehlberg78, 0.01, 100.0, 1e-14, 1e-14);
+                        10.0, RungeKuttaCoefficients::rungeKuttaFehlberg78, 0.01, 100.0, 1e-15, 1e-15);
                 std::cout << "Runge-Kutta7(8) integrator" << std::endl;
                 break;
             case 1:
+                integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch, 10.0,
+                        RungeKuttaCoefficients::rungeKuttaFehlberg45, 0.01, 100.0, 1e-10, 1e-10);
+                std::cout << "Runge-Kutta4(5) integrator" << std::endl;
+                break;
+            case 2:
+                integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch,
+                        10.0, RungeKuttaCoefficients::rungeKuttaFehlberg56, 0.01, 100.0, 1e-10, 1e-10);
+                std::cout << "Runge-Kutta5(6) integrator" << std::endl;
+                break;
+            case 3:
                 integratorSettings = std::make_shared< AdamsBashforthMoultonSettings< > >( simulationStartEpoch,
                         10.0, 0.1, 100.0, 1e-10, 1e-10);
                 std::cout << "ABM integrator" << std::endl;
                 break;
-            case 2:
+            case 4:
                 integratorSettings = std::make_shared< BulirschStoerIntegratorSettings< > >( simulationStartEpoch,
-                        10.0, ExtrapolationMethodStepSequences::bulirsch_stoer_sequence, 7, 0.01, 100.0, 1e-14, 1e-14);
+                        10.0, ExtrapolationMethodStepSequences::bulirsch_stoer_sequence, 7, 0.01, 1000.0, 1e-10, 1e-10);
                 std::cout << "Bulirsch-Stoer integrator" << std::endl;
                 break;
+            case 5:
+                integratorSettings = std::make_shared< IntegratorSettings< > >( rungeKutta4, simulationStartEpoch, 10.0 );
+                std::cout << "Runge-Kutta 4 (fixed step size) integrator" << std::endl;
         }
 
         int numberOfPropagatorRuns = 1;
 
-        if( integratorRun == 3 )
+        if( integratorRun == 5 )
         {
             numberOfPropagatorRuns = 7;
         }
@@ -415,12 +434,41 @@ int main( )
             SingleArcDynamicsSimulator<> dynamicsSimulator(
                     bodyMap, integratorSettings, propagatorSettings);
 
-            std::map<double, Eigen::VectorXd> propagatedStateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution();
+
+            std::map< double, Eigen::VectorXd > propagationHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution();
+            propagationHistories.push_back( propagationHistory );
             std::map<double, Eigen::VectorXd> dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory();
+            dependentVariableHistories.push_back( dependentVariableHistory );
 
-
-            input_output::writeDataMapToTextFile(propagatedStateHistory, "stateHistory_" + std::to_string(integratorRun) + "_" + std::to_string(propagatorRun) + ".dat", outputPath);
+            input_output::writeDataMapToTextFile(propagationHistory, "stateHistory_" + std::to_string(integratorRun) + "_" + std::to_string
+            (propagatorRun) + ".dat", outputPath);
             input_output::writeDataMapToTextFile(dependentVariableHistory, "dependentVariables_" + std::to_string(integratorRun) + "_" + std::to_string(propagatorRun) + ".dat", outputPath);
+
+            if( integratorRun != 0 )
+            {
+                // Create interpolator for map of current run
+                std::shared_ptr<interpolators::InterpolatorSettings> interpolatorSettings = std::make_shared<
+                        interpolators::LagrangeInterpolatorSettings>(8);
+                interpolator = interpolators::createOneDimensionalInterpolator(propagationHistory, interpolatorSettings);
+                depVarInterpolator = interpolators::createOneDimensionalInterpolator(dependentVariableHistory, interpolatorSettings);
+
+                // Interpolate to time steps of first (i.e., benchmark) run
+                std::map< double, Eigen::VectorXd > interpolatedState;
+                for( const auto& stateIterator : propagationHistories.at(0))
+                {
+                    interpolatedState[ stateIterator.first ] = interpolator->interpolate( stateIterator.first );
+                }
+                std::map< double, Eigen::VectorXd > interpolatedDepVar;
+                for( const auto& stateIterator : dependentVariableHistories.at(0))
+                {
+                    interpolatedDepVar[ stateIterator.first ] = depVarInterpolator->interpolate( stateIterator.first );
+                }
+
+                input_output::writeDataMapToTextFile( interpolatedState, "stateHistory_interpolated_" + std::to_string(integratorRun) + "_" +
+                std::to_string(propagatorRun) + ".dat", outputPath );
+                input_output::writeDataMapToTextFile( interpolatedDepVar, "dependentVariables_interpolated_" + std::to_string(integratorRun) + "_" +
+                                                                         std::to_string(propagatorRun) + ".dat", outputPath );
+			}
 
         }
     }
