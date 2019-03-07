@@ -240,9 +240,9 @@ int main( )
     ///////////////////////             CREATE VEHICLE            /////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    int cases = 6;
+    int cases = 8;
 
-    for( int currentCase = 0; currentCase < cases; currentCase++ )
+    for( unsigned int currentCase = 0; currentCase < cases; currentCase++ )
     {
         std::cout << "Running case " << currentCase << ".\n";
         // Create environment
@@ -251,6 +251,7 @@ int main( )
         bodiesToCreate.push_back( "Earth" );
         bodiesToCreate.push_back( "Sun" );
         bodiesToCreate.push_back( "Moon" );
+        bodiesToCreate.push_back( "Jupiter" );
         std::map< std::string, std::shared_ptr< BodySettings > > bodySettings =
                 getDefaultBodySettings( bodiesToCreate, simulationStartEpoch - 3600.0, simulationStartEpoch + 24.0 * 3600.0 );
         for( unsigned int i = 0; i < bodiesToCreate.size( ); i++ )
@@ -263,35 +264,11 @@ int main( )
 
         switch( currentCase )
         {
-            case 0:
-            {
-                // Nominal run: standard atmosphere (which one?) and central gravity
-                std::cout << "Nominal case\n";
-                break;
-            }
-            case 1:
-            {
-                // 2, 2 spherical harmonics
-                std::cout << "Spherical harmonics\n";
-                break;
-            }
             case 2:
             {
                 // NRLMSISE00 atmosphere model
                 std::cout << "NRLMSISE00 atmosphere model\n";
                 bodySettings["Earth"]->atmosphereSettings = std::make_shared<AtmosphereSettings>(nrlmsise00);
-                break;
-            }
-            case 3:
-            {
-                // Add 3rd body perturbation of the Moon
-                std::cout << "Third body perturbation of the Moon\n";
-                break;
-            }
-            case 4:
-            {
-                // Add 3rd body perturbation of the Sun
-                std::cout << "Third body perturbation of the Sun\n";
                 break;
             }
             case 5:
@@ -301,6 +278,12 @@ int main( )
                 occultingBodies.push_back("Earth");
                 capsuleRadiationPressureSettings = std::make_shared<
                         CannonBallRadiationPressureInterfaceSettings>("Sun", area, radiationPressureCoefficient, occultingBodies);
+                break;
+            }
+            case 6:
+            {
+                // Oblate Earth as shape model
+                bodySettings["Earth"]->shapeModelSettings = std::make_shared<OblateSphericalBodyShapeSettings>(6378e3, 1.0/300.0);
                 break;
             }
             default:
@@ -377,6 +360,12 @@ int main( )
                 accelerationsOfCapsule["Earth"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
                 accelerationsOfCapsule["Sun"].push_back(std::make_shared<AccelerationSettings>(cannon_ball_radiation_pressure));
                 break;
+            case 6:
+                accelerationsOfCapsule["Earth"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
+                break;
+            case 7:
+                accelerationsOfCapsule["Earth"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
+                accelerationsOfCapsule["Jupiter"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
             default:
                 break;
         }
@@ -440,7 +429,7 @@ int main( )
         std::shared_ptr<interpolators::OneDimensionalInterpolator<double, Eigen::VectorXd> > depVarInterpolator;
 
         // Benchmark
-        if(currentCase == 0)
+        if(currentCase == -1)
         {
             integratorSettings = std::make_shared<RungeKuttaVariableStepSizeSettings<> >(simulationStartEpoch, 0.04,
                     RungeKuttaCoefficients::rungeKuttaFehlberg78, 0.005, 0.5, 1e-14, 1e-14);
