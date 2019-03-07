@@ -141,7 +141,8 @@ public:
             const NamedBodyMap bodyMap,
             const double fixedAngleOfAttack ):bodyMap_( bodyMap ), fixedAngleOfAttack_( fixedAngleOfAttack )
     {
-
+        const std::shared_ptr< Body > earthBody = bodyMap_["Earth"];
+        Eigen::Vector3d earthPosition = earthBody->getPosition();
     }
 
     //! The aerodynamic angles are to be computed here
@@ -213,15 +214,17 @@ int main( )
 
     // Vehicle properties
     double vehicleDensity = 250.0;
-
-    // DEFINE PROBLEM INDEPENDENT VARIABLES HERE:
-    double angleOfAttack = 0.4559143679738996;
+    double area = 22.0;
+    double radiationPressureCoefficient = 1.0;
 
     //std::cout << "Enter a constant angle of attack: \n";
     //std::cin >> angleOfAttack;
 
     std::vector< double > shapeParameters =
-    { 8.148730872315355, 2.720324489288032, 0.2270385167794302, -0.4037530896422072, 0.2781438040896319, angleOfAttack };
+    { 8.148730872315355, 2.720324489288032, 0.2270385167794302, -0.4037530896422072, 0.2781438040896319, 0.4559143679738996 };
+
+    std::vector<std::map<double, Eigen::VectorXd> > propagationHistories;
+    std::vector<std::map<double, Eigen::VectorXd> > dependentVariableHistories;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////            CREATE ENVIRONMENT            //////////////////////////////////////////////////////
@@ -233,311 +236,268 @@ int main( )
     // Set numerical integration fixed step size.
     const double fixedStepSize = 1.0;
 
-    // Define simulation body settings.
-    std::vector< std::string > bodiesToCreate;
-    bodiesToCreate.push_back( "Earth" );
-    std::map< std::string, std::shared_ptr< BodySettings > > bodySettings =
-            getDefaultBodySettings( bodiesToCreate );
-    bodySettings[ "Earth" ]->rotationModelSettings->resetOriginalFrame( "J2000" );
-    bodySettings[ "Earth" ]->ephemerisSettings->resetFrameOrientation( "J2000" );
-    //bodySettings[ "Earth" ]->atmosphereSettings = std::make_shared< ExponentialAtmosphereSettings >( aerodynamics::earth );
-
-
-    // Create Earth object
-    simulation_setup::NamedBodyMap bodyMap = simulation_setup::createBodies( bodySettings );
-
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////             CREATE VEHICLE            /////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    // Create vehicle objects.
-    bodyMap[ "Capsule" ] = std::make_shared< simulation_setup::Body >( );
+    int cases = 6;
 
-    // Finalize body creation.
-    setGlobalFrameBodyEphemerides( bodyMap, "Earth", "J2000" );
-
-    double limitLength = ( shapeParameters[ 1 ] - shapeParameters[ 4 ] * ( 1.0 - std::cos( shapeParameters[ 3 ] ) ) ) /
-            std::tan( -shapeParameters[ 3 ] );
-    if( shapeParameters[ 2 ] >= limitLength - 0.01 )
+    for( int currentCase = 0; currentCase < cases; currentCase++ )
     {
-        shapeParameters[ 2 ] = limitLength -0.01;
-    }
-
-    // Create capsule.
-    std::shared_ptr< geometric_shapes::Capsule > capsule
-            = std::make_shared< geometric_shapes::Capsule >(
-                shapeParameters[ 0 ], shapeParameters[ 1 ], shapeParameters[ 2 ],
-            shapeParameters[ 3 ], shapeParameters[ 4 ] );
-
-    bodyMap[ "Capsule" ]->setConstantBodyMass(
-                capsule->getVolume( ) * vehicleDensity );
-
-    // Create vehicle aerodynamic coefficients
-    bodyMap[ "Capsule" ]->setAerodynamicCoefficientInterface(
-                getCapsuleCoefficientInterface( capsule, outputPath, "output_", true ) );
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ///////////////////////             CREATE ACCELERATIONS            ///////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    // Define propagator settings variables.
-    SelectedAccelerationMap accelerationMap;
-    std::vector< std::string > bodiesToPropagate;
-    std::vector< std::string > centralBodies;
-
-    // Define acceleration model settings.
-    std::map< std::string, std::vector< std::shared_ptr< AccelerationSettings > > > accelerationsOfCapsule;
-    accelerationsOfCapsule[ "Earth" ].push_back( std::make_shared< AccelerationSettings >( central_gravity ) );
-    //accelerationsOfCapsule[ "Earth" ].push_back( std::make_shared< SphericalHarmonicAccelerationSettings >( 2, 2 ) );
-    accelerationsOfCapsule[ "Earth" ].push_back( std::make_shared< AccelerationSettings >( aerodynamic ) );
-    accelerationMap[ "Capsule" ] = accelerationsOfCapsule;
-
-    bodiesToPropagate.push_back( "Capsule" );
-    centralBodies.push_back( "Earth" );
-
-    // Create acceleration models
-    basic_astrodynamics::AccelerationMap accelerationModelMap = createAccelerationModelsMap(
-                bodyMap, accelerationMap, bodiesToPropagate, centralBodies );
-
-    std::shared_ptr< CapsuleAerodynamicGuidance > capsuleGuidance =
-            std::make_shared< CapsuleAerodynamicGuidance >( bodyMap, shapeParameters.at( 5 ) );
-    setGuidanceAnglesFunctions( capsuleGuidance, bodyMap.at( "Capsule" ) );
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ///////////////////////             CREATE PROPAGATION SETTINGS            ////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    // Convert capsule state from spherical elements to Cartesian elements.
-    Eigen::Vector6d systemInitialState = convertSphericalOrbitalToCartesianState(
-                capsuleSphericalEntryState );
-
-    // Convert the state to the global (inertial) frame.
-    systemInitialState = transformStateToGlobalFrame(
-                systemInitialState, simulationStartEpoch, bodyMap.at( "Earth" )->getRotationalEphemeris( ) );
-
-    // Define termination conditions
-    std::vector< std::shared_ptr< PropagationTerminationSettings > > terminationSettingsList;
-    std::shared_ptr< SingleDependentVariableSaveSettings > terminationDependentVariable =
-            std::make_shared< SingleDependentVariableSaveSettings >( altitude_dependent_variable, "Capsule", "Earth" );
-    terminationSettingsList.push_back(
-                std::make_shared< PropagationDependentVariableTerminationSettings >(
-                    terminationDependentVariable, 25.0E3, true ) );
-    terminationSettingsList.push_back( std::make_shared< PropagationTimeTerminationSettings >(
-                                           24.0 * 3600.0 ) );
-    std::shared_ptr< PropagationTerminationSettings > terminationSettings = std::make_shared<
-            PropagationHybridTerminationSettings >( terminationSettingsList, true );
-
-    // Define dependent variables
-    std::vector< std::shared_ptr< SingleDependentVariableSaveSettings > > dependentVariablesList;
-    dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
-                                          altitude_dependent_variable, "Capsule", "Earth" ) );
-    dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
-                                          airspeed_dependent_variable, "Capsule", "Earth" ) );
-    dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
-                                          aerodynamic_force_coefficients_dependent_variable, "Capsule" ) );
-    dependentVariablesList.push_back( std::make_shared< SingleAccelerationDependentVariableSaveSettings >( aerodynamic, "Capsule", "Earth", false ) );
-    std::shared_ptr< DependentVariableSaveSettings > dependentVariablesToSave =
-            std::make_shared< DependentVariableSaveSettings >( dependentVariablesList );
-
-    // Define propagator type
-    TranslationalPropagatorType propagatorType;
-    std::shared_ptr< IntegratorSettings< > > integratorSettings;
-
-    std::vector< std::map< double, Eigen::VectorXd > > propagationHistories;
-    std::vector< std::map< double, Eigen::VectorXd > > dependentVariableHistories;
-    std::shared_ptr<interpolators::OneDimensionalInterpolator< double, Eigen::VectorXd> > interpolator;
-    std::shared_ptr<interpolators::OneDimensionalInterpolator< double, Eigen::VectorXd> > depVarInterpolator;
-
-    double stepSize = 1.0;
-    std::cout << "Enter a RK4 fixed step size: \n";
-    std::cin >> stepSize;
-
-    std::cout << "Chosen step size: " << stepSize << std::endl;
-
-    double tolerance = 1.0;
-    std::cout << "Enter tolerance for Q3: \n";
-    std::cin >> tolerance;
-
-    std::cout << "Chosen Q3 tolerance: " << tolerance << std::endl;
-
-    double minStepSize = 1.0;
-    std::cout << "Enter min. step size for Q3: \n";
-    std::cin >> minStepSize;
-
-    std::cout << "Chosen Q3 min. step size: " << minStepSize << std::endl;
-
-    double maxStepSize = 1.0;
-    std::cout << "Enter max. step size for Q3: \n";
-    std::cin >> maxStepSize;
-
-    std::cout << "Chosen Q3 max. step size: " << maxStepSize << std::endl;
-
-    for( int integratorRun = 0; integratorRun < 11; integratorRun++ )
-    {
-        std::cout << "Running integrator case " << integratorRun << std::endl;
-        switch( integratorRun )
+        std::cout << "Running case " << currentCase << ".\n";
+        // Create environment
+        // Define simulation body settings.
+        std::vector< std::string > bodiesToCreate;
+        bodiesToCreate.push_back( "Earth" );
+        bodiesToCreate.push_back( "Sun" );
+        bodiesToCreate.push_back( "Moon" );
+        std::map< std::string, std::shared_ptr< BodySettings > > bodySettings =
+                getDefaultBodySettings( bodiesToCreate, simulationStartEpoch - 3600.0, simulationStartEpoch + 24.0 * 3600.0 );
+        for( unsigned int i = 0; i < bodiesToCreate.size( ); i++ )
         {
-            default:
+            bodySettings[ bodiesToCreate.at( i ) ]->rotationModelSettings->resetOriginalFrame( "J2000" );
+            bodySettings[ bodiesToCreate.at( i ) ]->ephemerisSettings->resetFrameOrientation( "J2000" );
+        }
+
+        std::shared_ptr< RadiationPressureInterfaceSettings > capsuleRadiationPressureSettings;
+
+        switch( currentCase )
+        {
             case 0:
-                // Benchmark run
-                integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch,
-                        0.04, RungeKuttaCoefficients::rungeKuttaFehlberg78, 0.005, 0.5, 1e-14, 1e-14);
-                //integratorSettings = std::make_shared< AdamsBashforthMoultonSettings< > >( simulationStartEpoch,
-                //        10.0, 0.5, 100.0, 1e-14, 1e-14);
-                std::cout << "Runge-Kutta7(8) integrator (benchmark)" << std::endl;
+            {
+                // Nominal run: standard atmosphere (which one?) and central gravity
+                std::cout << "Nominal case\n";
+                break;
+            }
+            case 1:
+            {
+                // 2, 2 spherical harmonics
+                std::cout << "Spherical harmonics\n";
+                break;
+            }
+            case 2:
+            {
+                // NRLMSISE00 atmosphere model
+                std::cout << "NRLMSISE00 atmosphere model\n";
+                bodySettings["Earth"]->atmosphereSettings = std::make_shared<AtmosphereSettings>(nrlmsise00);
+                break;
+            }
+            case 3:
+            {
+                // Add 3rd body perturbation of the Moon
+                std::cout << "Third body perturbation of the Moon\n";
+                break;
+            }
+            case 4:
+            {
+                // Add 3rd body perturbation of the Sun
+                std::cout << "Third body perturbation of the Sun\n";
+                break;
+            }
+            case 5:
+            {
+                std::cout << "Radiation pressure of the Sun\n";
+                std::vector<std::string> occultingBodies;
+                occultingBodies.push_back("Earth");
+                capsuleRadiationPressureSettings = std::make_shared<
+                        CannonBallRadiationPressureInterfaceSettings>("Sun", area, radiationPressureCoefficient, occultingBodies);
+                break;
+            }
+            default:
+                break;
+        }
+
+        // Create Earth object
+        simulation_setup::NamedBodyMap bodyMap = simulation_setup::createBodies( bodySettings );
+        // Create vehicle objects.
+        bodyMap["Capsule"] = std::make_shared<simulation_setup::Body>();
+
+        // Finalize body creation.
+        setGlobalFrameBodyEphemerides(bodyMap, "Earth", "J2000");
+
+        double limitLength = (shapeParameters[1] - shapeParameters[4] * (1.0 - std::cos(shapeParameters[3]))) /
+                             std::tan(-shapeParameters[3]);
+        if (shapeParameters[2] >= limitLength - 0.01)
+        {
+            shapeParameters[2] = limitLength - 0.01;
+        }
+
+        // Create capsule.
+        std::shared_ptr<geometric_shapes::Capsule> capsule
+                = std::make_shared<geometric_shapes::Capsule>(
+                        shapeParameters[0], shapeParameters[1], shapeParameters[2],
+                        shapeParameters[3], shapeParameters[4]);
+
+        bodyMap["Capsule"]->setConstantBodyMass(capsule->getVolume() * vehicleDensity);
+
+        // Create vehicle aerodynamic coefficients
+        bodyMap["Capsule"]->setAerodynamicCoefficientInterface(
+                getCapsuleCoefficientInterface(capsule, outputPath, "output_", true));
+
+        if( currentCase == 5 )
+        {
+            bodyMap["Capsule"]->setRadiationPressureInterface("Sun", createRadiationPressureInterface(capsuleRadiationPressureSettings, "Capsule",
+                    bodyMap));
+        }
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        ///////////////////////             CREATE ACCELERATIONS            ///////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        // Define propagator settings variables.
+        SelectedAccelerationMap accelerationMap;
+        std::vector<std::string> bodiesToPropagate;
+        std::vector<std::string> centralBodies;
+
+        // Define acceleration model settings.
+        std::map<std::string, std::vector<std::shared_ptr<AccelerationSettings> > > accelerationsOfCapsule;
+
+        switch( currentCase )
+        {
+            case 0:
+                accelerationsOfCapsule[ "Earth" ].push_back( std::make_shared<AccelerationSettings>(central_gravity) );
                 break;
             case 1:
-                integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch,
-                        1.0, RungeKuttaCoefficients::rungeKuttaFehlberg45, 0.01, 10.0, 1e-5, 1e-5);
-                std::cout << "Runge-Kutta4(5) integrator" << std::endl;
+                accelerationsOfCapsule[ "Earth" ].push_back( std::make_shared< SphericalHarmonicAccelerationSettings >( 2, 2 ) );
                 break;
             case 2:
-                integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch,
-                        1.0, RungeKuttaCoefficients::rungeKuttaFehlberg56, 0.01, 10.0, 1e-5, 1e-5);
-                std::cout << "Runge-Kutta5(6) integrator" << std::endl;
+                // NRLMSISE00 atmosphere model
+                accelerationsOfCapsule["Earth"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
                 break;
             case 3:
-                integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch,
-                        1.0, RungeKuttaCoefficients::rungeKuttaFehlberg78, 0.01, 10.0, 1e-5, 1e-5);
-                std::cout << "Runge-Kutta7(8) integrator" << std::endl;
+                // 3rd body effect of Moon on Capsule
+                accelerationsOfCapsule["Earth"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
+                accelerationsOfCapsule[ "Moon" ].push_back( std::make_shared< AccelerationSettings >( central_gravity ) );
                 break;
             case 4:
-                integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch,
-                        1.0, RungeKuttaCoefficients::rungeKutta87DormandPrince, 0.01, 10.0, 1e-5, 1e-5);
-                std::cout << "Dormand-Prince 8(7) integrator" << std::endl;
+                accelerationsOfCapsule["Earth"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
+                accelerationsOfCapsule["Sun"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
                 break;
             case 5:
-                integratorSettings = std::make_shared< AdamsBashforthMoultonSettings< > >( simulationStartEpoch,
-                        0.5, 0.001, 100.0, 1e-5, 1e-5, 6, 11);
-                std::cout << "ABM integrator" << std::endl;
+                accelerationsOfCapsule["Earth"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
+                accelerationsOfCapsule["Sun"].push_back(std::make_shared<AccelerationSettings>(cannon_ball_radiation_pressure));
                 break;
-            case 6:
-                integratorSettings = std::make_shared< BulirschStoerIntegratorSettings< > >( simulationStartEpoch,
-                        0.5, ExtrapolationMethodStepSequences::bulirsch_stoer_sequence, 9, 0.001, 100.0, 1e-5, 1e-5);
-                std::cout << "Bulirsch-Stoer integrator" << std::endl;
-                break;
-            case 7:
-                integratorSettings = std::make_shared< IntegratorSettings< > >( rungeKutta4, simulationStartEpoch, stepSize );
-                std::cout << "Runge-Kutta 4 (fixed step size) integrator" << std::endl;
-                break;
-            case 8:
-                integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch,
-                        1.0, RungeKuttaCoefficients::rungeKuttaFehlberg45, minStepSize, maxStepSize, tolerance, tolerance);
-                std::cout << "Q3: Runge-Kutta4(5) integrator" << std::endl;
-                break;
-            case 9:
-                integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch,
-                        1.0, RungeKuttaCoefficients::rungeKuttaFehlberg56, minStepSize, maxStepSize, tolerance, tolerance);
-                std::cout << "Q3: Runge-Kutta5(6) integrator" << std::endl;
-                break;
-            case 10:
-                integratorSettings = std::make_shared< RungeKuttaVariableStepSizeSettings< > >( simulationStartEpoch,
-                        1.0, RungeKuttaCoefficients::rungeKuttaFehlberg78, minStepSize, maxStepSize, tolerance, tolerance);
-                std::cout << "Q3: Runge-Kutta7(8) integrator" << std::endl;
+            default:
                 break;
         }
 
-        int numberOfPropagatorRuns = 1;
+        accelerationsOfCapsule["Earth"].push_back(std::make_shared<AccelerationSettings>(aerodynamic));
 
-        if( integratorRun == 7 )
+        accelerationMap["Capsule"] = accelerationsOfCapsule;
+
+        bodiesToPropagate.push_back("Capsule");
+        centralBodies.push_back("Earth");
+
+        // Create acceleration models
+        basic_astrodynamics::AccelerationMap accelerationModelMap = createAccelerationModelsMap(
+                bodyMap, accelerationMap, bodiesToPropagate, centralBodies);
+
+        std::shared_ptr<CapsuleAerodynamicGuidance> capsuleGuidance =
+                std::make_shared<CapsuleAerodynamicGuidance>(bodyMap, shapeParameters.at(5));
+        setGuidanceAnglesFunctions(capsuleGuidance, bodyMap.at("Capsule"));
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        ///////////////////////             CREATE PROPAGATION SETTINGS            ////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        // Convert capsule state from spherical elements to Cartesian elements.
+        Eigen::Vector6d systemInitialState = convertSphericalOrbitalToCartesianState(
+                capsuleSphericalEntryState);
+
+        // Convert the state to the global (inertial) frame.
+        systemInitialState = transformStateToGlobalFrame(
+                systemInitialState, simulationStartEpoch, bodyMap.at("Earth")->getRotationalEphemeris());
+
+        // Define termination conditions
+        std::vector<std::shared_ptr<PropagationTerminationSettings> > terminationSettingsList;
+        std::shared_ptr<SingleDependentVariableSaveSettings> terminationDependentVariable =
+                std::make_shared<SingleDependentVariableSaveSettings>(altitude_dependent_variable, "Capsule", "Earth");
+        terminationSettingsList.push_back(
+                std::make_shared<PropagationDependentVariableTerminationSettings>(
+                        terminationDependentVariable, 25.0E3, true));
+        terminationSettingsList.push_back(std::make_shared<PropagationTimeTerminationSettings>(
+                24.0 * 3600.0));
+        std::shared_ptr<PropagationTerminationSettings> terminationSettings = std::make_shared<
+                PropagationHybridTerminationSettings>(terminationSettingsList, true);
+
+        // Define dependent variables
+        std::vector<std::shared_ptr<SingleDependentVariableSaveSettings> > dependentVariablesList;
+        dependentVariablesList.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
+                altitude_dependent_variable, "Capsule", "Earth"));
+        dependentVariablesList.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
+                airspeed_dependent_variable, "Capsule", "Earth"));
+        dependentVariablesList.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
+                aerodynamic_force_coefficients_dependent_variable, "Capsule"));
+        dependentVariablesList.push_back(std::make_shared<SingleAccelerationDependentVariableSaveSettings>(aerodynamic, "Capsule", "Earth", false));
+        std::shared_ptr<DependentVariableSaveSettings> dependentVariablesToSave =
+                std::make_shared<DependentVariableSaveSettings>(dependentVariablesList);
+
+        // Define propagator type
+        TranslationalPropagatorType propagatorType;
+        std::shared_ptr<IntegratorSettings<> > integratorSettings;
+
+        std::shared_ptr<interpolators::OneDimensionalInterpolator<double, Eigen::VectorXd> > interpolator;
+        std::shared_ptr<interpolators::OneDimensionalInterpolator<double, Eigen::VectorXd> > depVarInterpolator;
+
+        // Benchmark
+        if(currentCase == 0)
         {
-            numberOfPropagatorRuns = 7;
+            integratorSettings = std::make_shared<RungeKuttaVariableStepSizeSettings<> >(simulationStartEpoch, 0.04,
+                    RungeKuttaCoefficients::rungeKuttaFehlberg78, 0.005, 0.5, 1e-14, 1e-14);
         }
-        else if( integratorRun > 7)
+        else
         {
-            numberOfPropagatorRuns = 2;
+            integratorSettings = std::make_shared<RungeKuttaVariableStepSizeSettings<> >(simulationStartEpoch, 0.04,
+                    RungeKuttaCoefficients::rungeKuttaFehlberg56, 0.005, 0.5, 1e-5, 1e-5);
         }
 
-        for( int propagatorRun = 0; propagatorRun < numberOfPropagatorRuns; propagatorRun++ )
+        propagatorType = cowell;
+
+        // Create propagation settings.
+        std::shared_ptr<TranslationalStatePropagatorSettings<> > propagatorSettings =
+                std::make_shared<TranslationalStatePropagatorSettings<> >(
+                        centralBodies, accelerationModelMap, bodiesToPropagate, systemInitialState,
+                        terminationSettings, propagatorType, dependentVariablesToSave);
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        ///////////////////////             PROPAGATE ORBIT            ////////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        // Create simulation object and propagate dynamics.
+        SingleArcDynamicsSimulator<> dynamicsSimulator(
+                bodyMap, integratorSettings, propagatorSettings);
+
+        std::map<double, Eigen::VectorXd> propagationHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution();
+        std::cout << "Number of function evaluations: " << dynamicsSimulator.getCumulativeNumberOfFunctionEvaluations().rbegin()->second << std::endl;
+        propagationHistories.push_back(propagationHistory);
+        std::map<double, Eigen::VectorXd> dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory();
+        dependentVariableHistories.push_back(dependentVariableHistory);
+
+        input_output::writeDataMapToTextFile(propagationHistory, "stateHistory_" + std::to_string(currentCase) + ".dat", outputPath);
+        input_output::writeDataMapToTextFile(dependentVariableHistory, "dependentVariables_" + std::to_string(currentCase) + ".dat", outputPath);
+
+        // Create interpolator for map of current run
+        std::shared_ptr<interpolators::InterpolatorSettings> interpolatorSettings = std::make_shared<
+                interpolators::LagrangeInterpolatorSettings>(10);
+        interpolator = interpolators::createOneDimensionalInterpolator(propagationHistory, interpolatorSettings);
+        depVarInterpolator = interpolators::createOneDimensionalInterpolator(dependentVariableHistory, interpolatorSettings);
+
+        // Interpolate to time steps of first (i.e., benchmark) run
+        std::map<double, Eigen::VectorXd> interpolatedState;
+        for (const auto &stateIterator : propagationHistories.at(0))
         {
-
-            switch( propagatorRun )
-            {
-                default:
-                case 0:
-                    propagatorType = cowell;
-                    std::cout << "Running Cowell propagator\n";
-                    break;
-                case 1:
-                    propagatorType = encke;
-                    std::cout << "Running Encke propagator\n";
-                    break;
-                case 2:
-                    propagatorType = gauss_keplerian;
-                    std::cout << "Running Kepler propagator\n";
-                    break;
-                case 3:
-                    propagatorType = gauss_modified_equinoctial;
-                    std::cout << "Running MEE propagator\n";
-                    break;
-                case 4:
-                    propagatorType = unified_state_model_quaternions;
-                    std::cout << "Running USM4 propagator\n";
-                    break;
-                case 5:
-                    propagatorType = unified_state_model_modified_rodrigues_parameters;
-                    std::cout << "Running USM MRP propagator\n";
-                    break;
-                case 6:
-                    propagatorType = unified_state_model_exponential_map;
-                    std::cout << "Running USM_EM propagator\n";
-                    break;
-            }
-
-            // Create propagation settings.
-            std::shared_ptr<TranslationalStatePropagatorSettings< > > propagatorSettings =
-                    std::make_shared<TranslationalStatePropagatorSettings< > >(
-                            centralBodies, accelerationModelMap, bodiesToPropagate, systemInitialState,
-                            terminationSettings, propagatorType, dependentVariablesToSave);
-
-            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            ///////////////////////             PROPAGATE ORBIT            ////////////////////////////////////////////////////////
-            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-            // Create simulation object and propagate dynamics.
-            SingleArcDynamicsSimulator< > dynamicsSimulator(
-                    bodyMap, integratorSettings, propagatorSettings);
-
-            std::map< double, Eigen::VectorXd > propagationHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution();
-            std::cout << "Number of function evaluations: " << dynamicsSimulator.getCumulativeNumberOfFunctionEvaluations().rbegin()->second << std::endl;
-            propagationHistories.push_back( propagationHistory );
-            std::map< double, Eigen::VectorXd > dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory();
-            dependentVariableHistories.push_back( dependentVariableHistory );
-
-            input_output::writeDataMapToTextFile(propagationHistory, "stateHistory_" + std::to_string(integratorRun) + "_" +
-            std::to_string
-            (propagatorRun) + ".dat", outputPath);
-            input_output::writeDataMapToTextFile(dependentVariableHistory, "dependentVariables_" + std::to_string(integratorRun) + "_" + std::to_string(propagatorRun) + ".dat", outputPath);
-
-            if( integratorRun != 0 )
-            {
-                // Create interpolator for map of current run
-                std::shared_ptr<interpolators::InterpolatorSettings> interpolatorSettings = std::make_shared<
-                        interpolators::LagrangeInterpolatorSettings>(10);
-                interpolator = interpolators::createOneDimensionalInterpolator(propagationHistory, interpolatorSettings);
-                depVarInterpolator = interpolators::createOneDimensionalInterpolator(dependentVariableHistory, interpolatorSettings);
-
-                // Interpolate to time steps of first (i.e., benchmark) run
-                std::map< double, Eigen::VectorXd > interpolatedState;
-                for( const auto& stateIterator : propagationHistories.at(0))
-                {
-                    interpolatedState[ stateIterator.first ] = interpolator->interpolate( stateIterator.first );
-                }
-                std::map< double, Eigen::VectorXd > interpolatedDepVar;
-                for( const auto& stateIterator : dependentVariableHistories.at(0))
-                {
-                    interpolatedDepVar[ stateIterator.first ] = depVarInterpolator->interpolate( stateIterator.first );
-                }
-
-                input_output::writeDataMapToTextFile( interpolatedState, "stateHistory_interpolated_" + std::to_string(integratorRun) + "_" +
-                std::to_string(propagatorRun) + ".dat", outputPath );
-                input_output::writeDataMapToTextFile( interpolatedDepVar, "dependentVariables_interpolated_" + std::to_string(integratorRun) + "_" +
-                                                                         std::to_string(propagatorRun) + ".dat", outputPath );
-			}
-
+            interpolatedState[stateIterator.first] = interpolator->interpolate(stateIterator.first);
         }
+        std::map<double, Eigen::VectorXd> interpolatedDepVar;
+        for (const auto &stateIterator : dependentVariableHistories.at(0))
+        {
+            interpolatedDepVar[stateIterator.first] = depVarInterpolator->interpolate(stateIterator.first);
+        }
+
+        input_output::writeDataMapToTextFile(interpolatedState, "stateHistory_interpolated_" + std::to_string(currentCase) + ".dat", outputPath);
+        input_output::writeDataMapToTextFile(interpolatedDepVar, "dependentVariables_interpolated_" + std::to_string(currentCase) + ".dat", outputPath);
+
     }
-
     // The exit code EXIT_SUCCESS indicates that the program was successfully executed.
     return EXIT_SUCCESS;
 }
