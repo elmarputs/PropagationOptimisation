@@ -141,8 +141,6 @@ public:
             const NamedBodyMap bodyMap,
             const double fixedAngleOfAttack ):bodyMap_( bodyMap ), fixedAngleOfAttack_( fixedAngleOfAttack )
     {
-        const std::shared_ptr< Body > earthBody = bodyMap_["Earth"];
-        Eigen::Vector3d earthPosition = earthBody->getPosition();
     }
 
     //! The aerodynamic angles are to be computed here
@@ -194,23 +192,18 @@ int main( )
 
     std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimization" );
 
+    bool runMonteCarlo = true;
+
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////            SIMULATION SETTINGS            /////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    // Set spherical elements for Capsule.
-    Eigen::Vector6d capsuleSphericalEntryState;
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) =
-            spice_interface::getAverageRadius( "Earth" ) + 120.0E3;
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::latitudeIndex ) =
-            unit_conversions::convertDegreesToRadians( 0.0 );
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::longitudeIndex ) =
-            unit_conversions::convertDegreesToRadians( 68.75 );
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 6.5E3;
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) =
-            unit_conversions::convertDegreesToRadians( -1.5 );
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::headingAngleIndex ) =
-            unit_conversions::convertDegreesToRadians( 34.37 );
+    std::function< double( ) > altitudeErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
+            tudat::statistics::normal_boost_distribution, {0, 500}, 0 );
+    std::function< double( ) > velocityErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
+            tudat::statistics::normal_boost_distribution, {0, 100}, 0 );
+    std::function< double( ) > gammaErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
+            tudat::statistics::normal_boost_distribution, {0, 0.2}, 0 );
 
     // Vehicle properties
     double vehicleDensity = 250.0;
@@ -240,7 +233,7 @@ int main( )
     ///////////////////////             CREATE VEHICLE            /////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    int cases = 8;
+    int cases = 1;
 
     for( unsigned int currentCase = 0; currentCase < cases; currentCase++ )
     {
@@ -366,6 +359,9 @@ int main( )
             case 7:
                 accelerationsOfCapsule["Earth"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
                 accelerationsOfCapsule["Jupiter"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
+            case 8:
+                accelerationsOfCapsule[ "Earth" ].push_back( std::make_shared< SphericalHarmonicAccelerationSettings >( 2, 0 ) );
+                break;
             default:
                 break;
         }
@@ -389,13 +385,7 @@ int main( )
         ///////////////////////             CREATE PROPAGATION SETTINGS            ////////////////////////////////////////////
         ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        // Convert capsule state from spherical elements to Cartesian elements.
-        Eigen::Vector6d systemInitialState = convertSphericalOrbitalToCartesianState(
-                capsuleSphericalEntryState);
 
-        // Convert the state to the global (inertial) frame.
-        systemInitialState = transformStateToGlobalFrame(
-                systemInitialState, simulationStartEpoch, bodyMap.at("Earth")->getRotationalEphemeris());
 
         // Define termination conditions
         std::vector<std::shared_ptr<PropagationTerminationSettings> > terminationSettingsList;
@@ -442,49 +432,92 @@ int main( )
 
         propagatorType = cowell;
 
-        // Create propagation settings.
-        std::shared_ptr<TranslationalStatePropagatorSettings<> > propagatorSettings =
-                std::make_shared<TranslationalStatePropagatorSettings<> >(
-                        centralBodies, accelerationModelMap, bodiesToPropagate, systemInitialState,
-                        terminationSettings, propagatorType, dependentVariablesToSave);
+        // Double for loop for Monte Carlo
+        unsigned int numberOfInputs = 1;
+        unsigned int numberOfSamples = 1;
+        if( runMonteCarlo )
+        {
+            numberOfInputs = 2; // How many initial conditions are to be analysed
+            numberOfSamples = 10; // How many MC samples per initial condition
+        }
 
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        ///////////////////////             PROPAGATE ORBIT            ////////////////////////////////////////////////////////
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        for( unsigned int i = 0; i < numberOfInputs; i++ )
+        {
+            std::map< double, Eigen::VectorXd > finalStates;
+            for( unsigned int j = 0; j < numberOfSamples; j++ )
+            {
+                std::cout << "MC run " << i << " : " << j << "\n";
+                // Initialise initial conditions (= systemInitialState)
+                // Set spherical elements for Capsule.
+                Eigen::Vector6d capsuleSphericalEntryState;
+                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) =
+                        spice_interface::getAverageRadius( "Earth" ) + 120.0E3 + altitudeErrorFunction();
+                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::latitudeIndex ) =
+                        unit_conversions::convertDegreesToRadians( 0.0 );
+                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::longitudeIndex ) =
+                        unit_conversions::convertDegreesToRadians( 68.75 );
+                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 6.5E3 + velocityErrorFunction();
+                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) =
+                        unit_conversions::convertDegreesToRadians( -1.5 + gammaErrorFunction() );
+                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::headingAngleIndex ) =
+                        unit_conversions::convertDegreesToRadians( 34.37 );
+                // Convert capsule state from spherical elements to Cartesian elements.
+                Eigen::Vector6d systemInitialState = convertSphericalOrbitalToCartesianState(
+                        capsuleSphericalEntryState);
 
-        // Create simulation object and propagate dynamics.
-        SingleArcDynamicsSimulator<> dynamicsSimulator(
-                bodyMap, integratorSettings, propagatorSettings);
+                // Convert the state to the global (inertial) frame.
+                systemInitialState = transformStateToGlobalFrame(
+                        systemInitialState, simulationStartEpoch, bodyMap.at("Earth")->getRotationalEphemeris());
 
-        std::map<double, Eigen::VectorXd> propagationHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution();
-        std::cout << "Number of function evaluations: " << dynamicsSimulator.getCumulativeNumberOfFunctionEvaluations().rbegin()->second << std::endl;
-        propagationHistories.push_back(propagationHistory);
-        std::map<double, Eigen::VectorXd> dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory();
-        dependentVariableHistories.push_back(dependentVariableHistory);
 
-        input_output::writeDataMapToTextFile(propagationHistory, "stateHistory_" + std::to_string(currentCase) + ".dat", outputPath);
-        input_output::writeDataMapToTextFile(dependentVariableHistory, "dependentVariables_" + std::to_string(currentCase) + ".dat", outputPath);
+                // Set up propagator settings with new initial conditions
+                std::shared_ptr<TranslationalStatePropagatorSettings<> > propagatorSettings =
+                        std::make_shared<TranslationalStatePropagatorSettings<> >(
+                                centralBodies, accelerationModelMap, bodiesToPropagate, systemInitialState,
+                                terminationSettings, propagatorType, dependentVariablesToSave);
+
+                // Perform propagation and extract solution map
+                SingleArcDynamicsSimulator<> dynamicsSimulator(
+                        bodyMap, integratorSettings, propagatorSettings);
+                std::map<double, Eigen::VectorXd> propagationHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution();
+
+                // Extract last state (which is relevant for error analysis)
+                finalStates[ j ] = propagationHistory.rbegin()->second;
+            }
+
+            // Write map with final states to file
+            input_output::writeDataMapToTextFile( finalStates, "MC_" + std::to_string(i) + ".dat", outputPath );
+        }
+
+//        std::map<double, Eigen::VectorXd> propagationHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution();
+//        std::cout << "Number of function evaluations: " << dynamicsSimulator.getCumulativeNumberOfFunctionEvaluations().rbegin()->second << std::endl;
+//        propagationHistories.push_back(propagationHistory);
+//        std::map<double, Eigen::VectorXd> dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory();
+//        dependentVariableHistories.push_back(dependentVariableHistory);
+
+//        input_output::writeDataMapToTextFile(propagationHistory, "stateHistory_" + std::to_string(currentCase) + ".dat", outputPath);
+//        input_output::writeDataMapToTextFile(dependentVariableHistory, "dependentVariables_" + std::to_string(currentCase) + ".dat", outputPath);
 
         // Create interpolator for map of current run
-        std::shared_ptr<interpolators::InterpolatorSettings> interpolatorSettings = std::make_shared<
-                interpolators::LagrangeInterpolatorSettings>(10);
-        interpolator = interpolators::createOneDimensionalInterpolator(propagationHistory, interpolatorSettings);
-        depVarInterpolator = interpolators::createOneDimensionalInterpolator(dependentVariableHistory, interpolatorSettings);
-
-        // Interpolate to time steps of first (i.e., benchmark) run
-        std::map<double, Eigen::VectorXd> interpolatedState;
-        for (const auto &stateIterator : propagationHistories.at(0))
-        {
-            interpolatedState[stateIterator.first] = interpolator->interpolate(stateIterator.first);
-        }
-        std::map<double, Eigen::VectorXd> interpolatedDepVar;
-        for (const auto &stateIterator : dependentVariableHistories.at(0))
-        {
-            interpolatedDepVar[stateIterator.first] = depVarInterpolator->interpolate(stateIterator.first);
-        }
-
-        input_output::writeDataMapToTextFile(interpolatedState, "stateHistory_interpolated_" + std::to_string(currentCase) + ".dat", outputPath);
-        input_output::writeDataMapToTextFile(interpolatedDepVar, "dependentVariables_interpolated_" + std::to_string(currentCase) + ".dat", outputPath);
+//        std::shared_ptr<interpolators::InterpolatorSettings> interpolatorSettings = std::make_shared<
+//                interpolators::LagrangeInterpolatorSettings>(10);
+//        interpolator = interpolators::createOneDimensionalInterpolator(propagationHistory, interpolatorSettings);
+//        depVarInterpolator = interpolators::createOneDimensionalInterpolator(dependentVariableHistory, interpolatorSettings);
+//
+//        // Interpolate to time steps of first (i.e., benchmark) run
+//        std::map<double, Eigen::VectorXd> interpolatedState;
+//        for (const auto &stateIterator : propagationHistories.at(0))
+//        {
+//            interpolatedState[stateIterator.first] = interpolator->interpolate(stateIterator.first);
+//        }
+//        std::map<double, Eigen::VectorXd> interpolatedDepVar;
+//        for (const auto &stateIterator : dependentVariableHistories.at(0))
+//        {
+//            interpolatedDepVar[stateIterator.first] = depVarInterpolator->interpolate(stateIterator.first);
+//        }
+//
+//        input_output::writeDataMapToTextFile(interpolatedState, "stateHistory_interpolated_" + std::to_string(currentCase) + ".dat", outputPath);
+//        input_output::writeDataMapToTextFile(interpolatedDepVar, "dependentVariables_interpolated_" + std::to_string(currentCase) + ".dat", outputPath);
 
     }
     // The exit code EXIT_SUCCESS indicates that the program was successfully executed.
