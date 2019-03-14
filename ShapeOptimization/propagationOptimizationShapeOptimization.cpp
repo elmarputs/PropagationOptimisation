@@ -26,6 +26,7 @@ using namespace tudat::aerodynamics;
 using namespace tudat::basic_mathematics;
 using namespace tudat::input_output;
 using namespace tudat::mathematical_constants;
+using namespace tudat::reference_frames;
 using namespace tudat;
 
 /*!
@@ -199,11 +200,14 @@ int main( )
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     std::function< double( ) > altitudeErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
-            tudat::statistics::normal_boost_distribution, {0, 500}, 0 );
+            tudat::statistics::normal_boost_distribution, {0, 1000}, 0 );
     std::function< double( ) > velocityErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
-            tudat::statistics::normal_boost_distribution, {0, 100}, 0 );
+            tudat::statistics::normal_boost_distribution, {0, 250}, 0 );
     std::function< double( ) > gammaErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
             tudat::statistics::normal_boost_distribution, {0, 0.2}, 0 );
+
+    std::function< double( ) > vehicleDensityErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
+            tudat::statistics::uniform_boost_distribution, {-50.0, 50.0}, 0 );
 
     // Vehicle properties
     double vehicleDensity = 250.0;
@@ -233,9 +237,9 @@ int main( )
     ///////////////////////             CREATE VEHICLE            /////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    int cases = 1;
+    int cases = 10;
 
-    for( unsigned int currentCase = 0; currentCase < cases; currentCase++ )
+    for( unsigned int currentCase = 9; currentCase < cases; currentCase++ )
     {
         std::cout << "Running case " << currentCase << ".\n";
         // Create environment
@@ -267,7 +271,7 @@ int main( )
             case 5:
             {
                 std::cout << "Radiation pressure of the Sun\n";
-                std::vector<std::string> occultingBodies;
+                std::vector<std::string> occultingBodies;bodySettings["Earth"]->atmosphereSettings = std::make_shared<AtmosphereSettings>(nrlmsise00);
                 occultingBodies.push_back("Earth");
                 capsuleRadiationPressureSettings = std::make_shared<
                         CannonBallRadiationPressureInterfaceSettings>("Sun", area, radiationPressureCoefficient, occultingBodies);
@@ -276,6 +280,12 @@ int main( )
             case 6:
             {
                 // Oblate Earth as shape model
+                bodySettings["Earth"]->shapeModelSettings = std::make_shared<OblateSphericalBodyShapeSettings>(6378e3, 1.0/300.0);
+                break;
+            }
+            case 9:
+            {
+                bodySettings["Earth"]->atmosphereSettings = std::make_shared<AtmosphereSettings>(nrlmsise00);
                 bodySettings["Earth"]->shapeModelSettings = std::make_shared<OblateSphericalBodyShapeSettings>(6378e3, 1.0/300.0);
                 break;
             }
@@ -359,9 +369,12 @@ int main( )
             case 7:
                 accelerationsOfCapsule["Earth"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
                 accelerationsOfCapsule["Jupiter"].push_back(std::make_shared<AccelerationSettings>(central_gravity));
+                break;
             case 8:
                 accelerationsOfCapsule[ "Earth" ].push_back( std::make_shared< SphericalHarmonicAccelerationSettings >( 2, 0 ) );
                 break;
+            case 9:
+                accelerationsOfCapsule[ "Earth" ].push_back( std::make_shared< SphericalHarmonicAccelerationSettings >( 2, 0 ) );
             default:
                 break;
         }
@@ -407,6 +420,8 @@ int main( )
                 airspeed_dependent_variable, "Capsule", "Earth"));
         dependentVariablesList.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
                 aerodynamic_force_coefficients_dependent_variable, "Capsule"));
+        dependentVariablesList.push_back(std::make_shared<BodyAerodynamicAngleVariableSaveSettings>("Capsule", latitude_angle));
+        dependentVariablesList.push_back(std::make_shared<BodyAerodynamicAngleVariableSaveSettings>("Capsule", longitude_angle));
         dependentVariablesList.push_back(std::make_shared<SingleAccelerationDependentVariableSaveSettings>(aerodynamic, "Capsule", "Earth", false));
         std::shared_ptr<DependentVariableSaveSettings> dependentVariablesToSave =
                 std::make_shared<DependentVariableSaveSettings>(dependentVariablesList);
@@ -434,33 +449,60 @@ int main( )
 
         // Double for loop for Monte Carlo
         unsigned int numberOfInputs = 1;
-        unsigned int numberOfSamples = 1;
         if( runMonteCarlo )
         {
-            numberOfInputs = 2; // How many initial conditions are to be analysed
-            numberOfSamples = 10; // How many MC samples per initial condition
+            numberOfInputs = 4; // How many initial conditions are to be analysed
         }
 
         for( unsigned int i = 0; i < numberOfInputs; i++ )
         {
-            std::map< double, Eigen::VectorXd > finalStates;
+            Eigen::Vector6d capsuleSphericalEntryState;
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) =
+                    spice_interface::getAverageRadius( "Earth" ) + 120.0E3;
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::latitudeIndex ) =
+                    unit_conversions::convertDegreesToRadians( 0.0 );
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::longitudeIndex ) =
+                    unit_conversions::convertDegreesToRadians( 68.75 );
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 6.5E3;
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) =
+                    unit_conversions::convertDegreesToRadians( -1.5 );
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::headingAngleIndex ) =
+                    unit_conversions::convertDegreesToRadians( 34.37 );
+
+            std::map< int, Eigen::VectorXd > finalStates;
+            std::map< int, Eigen::VectorXd > finalDependentVariables;
+
+            unsigned int numberOfSamples = 250;
+            if( i == 0 )
+            {
+                // Only one run to obtain reference trajectory
+                numberOfSamples = 1;
+            }
+
             for( unsigned int j = 0; j < numberOfSamples; j++ )
             {
                 std::cout << "MC run " << i << " : " << j << "\n";
                 // Initialise initial conditions (= systemInitialState)
-                // Set spherical elements for Capsule.
-                Eigen::Vector6d capsuleSphericalEntryState;
-                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) =
-                        spice_interface::getAverageRadius( "Earth" ) + 120.0E3 + altitudeErrorFunction();
-                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::latitudeIndex ) =
-                        unit_conversions::convertDegreesToRadians( 0.0 );
-                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::longitudeIndex ) =
-                        unit_conversions::convertDegreesToRadians( 68.75 );
-                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 6.5E3 + velocityErrorFunction();
-                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) =
-                        unit_conversions::convertDegreesToRadians( -1.5 + gammaErrorFunction() );
-                capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::headingAngleIndex ) =
-                        unit_conversions::convertDegreesToRadians( 34.37 );
+                // Do nothing if i == 0 (reference trajectory)
+                if( i == 1 )
+                {
+                    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) = spice_interface::getAverageRadius( "Earth" ) +
+                            120.0E3 + altitudeErrorFunction();
+                }
+                else if( i == 2 )
+                {
+                    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 6.5E3 + velocityErrorFunction();
+                }
+                else if( i == 3 )
+                {
+                    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) = unit_conversions::convertDegreesToRadians(
+                            -1.5 + gammaErrorFunction( ) );
+                }
+                else if( i == 4 )
+                {
+
+                }
+
                 // Convert capsule state from spherical elements to Cartesian elements.
                 Eigen::Vector6d systemInitialState = convertSphericalOrbitalToCartesianState(
                         capsuleSphericalEntryState);
@@ -480,13 +522,16 @@ int main( )
                 SingleArcDynamicsSimulator<> dynamicsSimulator(
                         bodyMap, integratorSettings, propagatorSettings);
                 std::map<double, Eigen::VectorXd> propagationHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution();
+                std::map<double, Eigen::VectorXd> dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory();
 
                 // Extract last state (which is relevant for error analysis)
                 finalStates[ j ] = propagationHistory.rbegin()->second;
+                finalDependentVariables[ j ] = dependentVariableHistory.rbegin()->second;
             }
 
             // Write map with final states to file
             input_output::writeDataMapToTextFile( finalStates, "MC_" + std::to_string(i) + ".dat", outputPath );
+            input_output::writeDataMapToTextFile( finalDependentVariables, "MC_" + std::to_string(i) + "_dep.dat", outputPath );
         }
 
 //        std::map<double, Eigen::VectorXd> propagationHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution();
