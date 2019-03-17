@@ -74,3 +74,4 @@ sandbox/
 .DS_Store
 *.m
 *.asv
+*.fig

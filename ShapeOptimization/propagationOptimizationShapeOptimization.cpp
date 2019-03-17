@@ -195,9 +195,7 @@ int main( )
 
     bool runMonteCarlo = true;
 
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ///////////////////////            SIMULATION SETTINGS            /////////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    int cases = 10;
 
     std::function< double( ) > altitudeErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
             tudat::statistics::normal_boost_distribution, {0, 1000}, 0 );
@@ -205,12 +203,69 @@ int main( )
             tudat::statistics::normal_boost_distribution, {0, 250}, 0 );
     std::function< double( ) > gammaErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
             tudat::statistics::normal_boost_distribution, {0, 0.2}, 0 );
+    std::function< double( ) > latitudeErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
+            tudat::statistics::normal_boost_distribution, {0, 1.0}, 0 );
+    std::function< double( ) > longitudeErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
+            tudat::statistics::normal_boost_distribution, {0, 1.0}, 0 );
+    std::function< double( ) > headingErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
+            tudat::statistics::normal_boost_distribution, {0, 5.0}, 0 );
 
     std::function< double( ) > vehicleDensityErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
             tudat::statistics::uniform_boost_distribution, {-50.0, 50.0}, 0 );
+    std::function< double( ) > flatnessErrorFunction = tudat::statistics::createBoostContinuousRandomVariableGeneratorFunction(
+            tudat::statistics::normal_boost_distribution, {0.0, 1.0}, 0 );
+
+    for( unsigned int currentCase = 9; currentCase < cases; currentCase++ )
+    {
+        // Double for loop for Monte Carlo
+        unsigned int numberOfInputs = 1;
+        if( runMonteCarlo )
+        {
+            numberOfInputs = 9; // How many initial conditions are to be analysed
+        }
+
+        for( unsigned int i = 8; i < numberOfInputs; i++ )
+        {
+            Eigen::Vector6d capsuleSphericalEntryState;
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) =
+                    spice_interface::getAverageRadius( "Earth" ) + 120.0E3;
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::latitudeIndex ) =
+                    unit_conversions::convertDegreesToRadians( 0.0 );
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::longitudeIndex ) =
+                    unit_conversions::convertDegreesToRadians( 68.75 );
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 6.5E3;
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) =
+                    unit_conversions::convertDegreesToRadians( -1.5 );
+            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::headingAngleIndex ) =
+                    unit_conversions::convertDegreesToRadians( 34.37 );
+
+            std::map< int, Eigen::VectorXd > finalStates;
+            std::map< int, Eigen::VectorXd > finalDependentVariables;
+
+            unsigned int numberOfSamples = 250;
+            if( i == 0 )
+            {
+                // Only one run to obtain reference trajectory
+                numberOfSamples = 1;
+            }
+
+            for( unsigned int j = 0; j < numberOfSamples; j++ )
+            {
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////            SIMULATION SETTINGS            /////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
     // Vehicle properties
+
     double vehicleDensity = 250.0;
+
+    if( i == 7)
+    {
+        vehicleDensity = 250.0 + vehicleDensityErrorFunction();
+    }
+
     double area = 22.0;
     double radiationPressureCoefficient = 1.0;
 
@@ -237,10 +292,42 @@ int main( )
     ///////////////////////             CREATE VEHICLE            /////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    int cases = 10;
 
-    for( unsigned int currentCase = 9; currentCase < cases; currentCase++ )
+    std::cout << "MC run " << i << " : " << j << "\n";
+    // Initialise initial conditions (= systemInitialState)
+    // Do nothing if i == 0 (reference trajectory)
+    if( i == 1 )
     {
+        capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) = spice_interface::getAverageRadius( "Earth" ) +
+                                                                                         120.0E3 + altitudeErrorFunction();
+    }
+    else if( i == 2 )
+    {
+        capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 6.5E3 + velocityErrorFunction();
+    }
+    else if( i == 3 )
+    {
+        capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) = unit_conversions::convertDegreesToRadians(
+                -1.5 + gammaErrorFunction( ) );
+    }
+    else if( i == 4 )
+    {
+        capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::latitudeIndex ) = unit_conversions::convertDegreesToRadians(
+                0.0 + latitudeErrorFunction( ) );
+    }
+    else if( i == 5 )
+    {
+        capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::longitudeIndex ) = unit_conversions::convertDegreesToRadians(
+                68.75 + longitudeErrorFunction( ) );
+    }
+    else if( i == 6 )
+    {
+        capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::headingAngleIndex ) = unit_conversions::convertDegreesToRadians(
+                34.37 + headingErrorFunction( ) );
+    }
+
+
+
         std::cout << "Running case " << currentCase << ".\n";
         // Create environment
         // Define simulation body settings.
@@ -286,7 +373,15 @@ int main( )
             case 9:
             {
                 bodySettings["Earth"]->atmosphereSettings = std::make_shared<AtmosphereSettings>(nrlmsise00);
-                bodySettings["Earth"]->shapeModelSettings = std::make_shared<OblateSphericalBodyShapeSettings>(6378e3, 1.0/300.0);
+                if( i == 8 )
+                {
+                    bodySettings["Earth"]->shapeModelSettings = std::make_shared<OblateSphericalBodyShapeSettings>(6378137, 1.0 / (298.257223563 +
+                    flatnessErrorFunction()));
+                }
+                else
+                {
+                    bodySettings["Earth"]->shapeModelSettings = std::make_shared<OblateSphericalBodyShapeSettings>(6378137, 1.0 / 298.257223563);
+                }
                 break;
             }
             default:
@@ -297,6 +392,7 @@ int main( )
         simulation_setup::NamedBodyMap bodyMap = simulation_setup::createBodies( bodySettings );
         // Create vehicle objects.
         bodyMap["Capsule"] = std::make_shared<simulation_setup::Body>();
+
 
         // Finalize body creation.
         setGlobalFrameBodyEphemerides(bodyMap, "Earth", "J2000");
@@ -325,6 +421,14 @@ int main( )
             bodyMap["Capsule"]->setRadiationPressureInterface("Sun", createRadiationPressureInterface(capsuleRadiationPressureSettings, "Capsule",
                     bodyMap));
         }
+
+        // Convert capsule state from spherical elements to Cartesian elements.
+        Eigen::Vector6d systemInitialState = convertSphericalOrbitalToCartesianState(
+                capsuleSphericalEntryState);
+
+        // Convert the state to the global (inertial) frame.
+        systemInitialState = transformStateToGlobalFrame(
+                systemInitialState, simulationStartEpoch, bodyMap.at("Earth")->getRotationalEphemeris());
 
         ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         ///////////////////////             CREATE ACCELERATIONS            ///////////////////////////////////////////////////
@@ -446,70 +550,6 @@ int main( )
         }
 
         propagatorType = cowell;
-
-        // Double for loop for Monte Carlo
-        unsigned int numberOfInputs = 1;
-        if( runMonteCarlo )
-        {
-            numberOfInputs = 4; // How many initial conditions are to be analysed
-        }
-
-        for( unsigned int i = 0; i < numberOfInputs; i++ )
-        {
-            Eigen::Vector6d capsuleSphericalEntryState;
-            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) =
-                    spice_interface::getAverageRadius( "Earth" ) + 120.0E3;
-            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::latitudeIndex ) =
-                    unit_conversions::convertDegreesToRadians( 0.0 );
-            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::longitudeIndex ) =
-                    unit_conversions::convertDegreesToRadians( 68.75 );
-            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 6.5E3;
-            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) =
-                    unit_conversions::convertDegreesToRadians( -1.5 );
-            capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::headingAngleIndex ) =
-                    unit_conversions::convertDegreesToRadians( 34.37 );
-
-            std::map< int, Eigen::VectorXd > finalStates;
-            std::map< int, Eigen::VectorXd > finalDependentVariables;
-
-            unsigned int numberOfSamples = 250;
-            if( i == 0 )
-            {
-                // Only one run to obtain reference trajectory
-                numberOfSamples = 1;
-            }
-
-            for( unsigned int j = 0; j < numberOfSamples; j++ )
-            {
-                std::cout << "MC run " << i << " : " << j << "\n";
-                // Initialise initial conditions (= systemInitialState)
-                // Do nothing if i == 0 (reference trajectory)
-                if( i == 1 )
-                {
-                    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) = spice_interface::getAverageRadius( "Earth" ) +
-                            120.0E3 + altitudeErrorFunction();
-                }
-                else if( i == 2 )
-                {
-                    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 6.5E3 + velocityErrorFunction();
-                }
-                else if( i == 3 )
-                {
-                    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) = unit_conversions::convertDegreesToRadians(
-                            -1.5 + gammaErrorFunction( ) );
-                }
-                else if( i == 4 )
-                {
-
-                }
-
-                // Convert capsule state from spherical elements to Cartesian elements.
-                Eigen::Vector6d systemInitialState = convertSphericalOrbitalToCartesianState(
-                        capsuleSphericalEntryState);
-
-                // Convert the state to the global (inertial) frame.
-                systemInitialState = transformStateToGlobalFrame(
-                        systemInitialState, simulationStartEpoch, bodyMap.at("Earth")->getRotationalEphemeris());
 
 
                 // Set up propagator settings with new initial conditions
