@@ -40,172 +40,150 @@ ylabel('Position error [m]');
 grid on;
 legend('Spherical harmonics up to 2/2', 'NRLMSISE00 atmospheric model', 'Incl. Lunar gravity', ...
     'Incl. Solar gravity', 'Incl. Jovian gravity', 'Solar radiation pressure', 'Oblate Earth');
-title('Question 1');
+set(gca, 'FontSize', 14);
 
-%% Question 1
-
-% High-fidelity orbit propagation
+%% Question 3: Analysis of uncertainty in initial state
 
 path = "C:\tudatBundle\tudatApplications\PropagationOptimisation\SimulationOutput\ShapeOptimization\";
+r_e  = 6378+25; %km
 
-state_0_0 = dlmread(strcat(path, 'stateHistory_0_0.dat'));
-state_1_0_interpolated = dlmread(strcat(path, 'stateHistory_interpolated_1_0.dat'));
-state_2_0_interpolated = dlmread(strcat(path, 'stateHistory_interpolated_2_0.dat'));
-state_3_0_interpolated = dlmread(strcat(path, 'stateHistory_interpolated_3_0.dat'));
-state_4_0_interpolated = dlmread(strcat(path, 'stateHistory_interpolated_4_0.dat'));
-state_5_0_interpolated = dlmread(strcat(path, 'stateHistory_interpolated_5_0.dat'));
-state_6_0_interpolated = dlmread(strcat(path, 'stateHistory_interpolated_6_0.dat'));
+reference    = dlmread(strcat(path, 'MC_0_dep.dat'));
+uncert_alt   = dlmread(strcat(path, 'MC_1_dep.dat'));
+uncert_vel   = dlmread(strcat(path, 'MC_2_dep.dat'));
+uncert_gamma = dlmread(strcat(path, 'MC_3_dep.dat'));
+uncert_lat = dlmread(strcat(path, 'MC_4_dep.dat'));
+uncert_lon = dlmread(strcat(path, 'MC_5_dep.dat'));
+uncert_hdg = dlmread(strcat(path, 'MC_6_dep.dat'));
+uncert_mass = dlmread(strcat(path, 'MC_7_dep.dat'));
+uncert_flat = dlmread(strcat(path, 'MC_8_dep.dat'));
 
-depvar_0_0 = dlmread(strcat(path, 'dependentVariables_0_0.dat'));
-depvar_1_0 = dlmread(strcat(path, 'dependentVariables_interpolated_1_0.dat'));
-depvar_2_0 = dlmread(strcat(path, 'dependentVariables_interpolated_2_0.dat'));
-depvar_3_0 = dlmread(strcat(path, 'dependentVariables_interpolated_3_0.dat'));
-depvar_4_0 = dlmread(strcat(path, 'dependentVariables_interpolated_4_0.dat'));
-depvar_5_0 = dlmread(strcat(path, 'dependentVariables_interpolated_5_0.dat'));
-depvar_6_0 = dlmread(strcat(path, 'dependentVariables_interpolated_6_0.dat'));
+latlon_alt   = uncert_alt(:,7:8);
+latlon_vel   = uncert_vel(:,7:8);
+latlon_gamma = uncert_gamma(:,7:8);
+latlon_lat = uncert_lat(:,7:8);
+latlon_lon = uncert_lon(:,7:8);
+latlon_hdg = uncert_hdg(:,7:8);
+latlon_mass = uncert_mass(:,7:8);
+latlon_flat = uncert_flat(:,7:8);
 
-error_1 = state_1_0_interpolated - state_0_0;
-error_2 = state_2_0_interpolated - state_0_0;
-error_3 = state_3_0_interpolated - state_0_0;
-error_4 = state_4_0_interpolated - state_0_0;
-error_5 = state_5_0_interpolated - state_0_0;
-error_6 = state_6_0_interpolated - state_0_0;
+r_alt = vecnorm(latlon_alt, 2, 2).*r_e;
+r_vel = vecnorm(latlon_vel, 2, 2).*r_e;
+r_gamma = vecnorm(latlon_gamma, 2, 2).*r_e;
+r_lat = vecnorm(latlon_lat, 2, 2).*r_e;
+r_lon = vecnorm(latlon_lon, 2, 2).*r_e;
+r_hdg = vecnorm(latlon_hdg, 2, 2).*r_e;
+r_mass = vecnorm(latlon_mass, 2, 2).*r_e;
+r_flat = vecnorm(latlon_flat, 2, 2).*r_e;
 
-alt_error_1 = abs(depvar_1_0(:,2) - depvar_0_0(:,2));
-alt_error_2 = abs(depvar_2_0(:,2) - depvar_0_0(:,2));
-alt_error_3 = abs(depvar_3_0(:,2) - depvar_0_0(:,2));
-alt_error_4 = abs(depvar_4_0(:,2) - depvar_0_0(:,2));
-alt_error_5 = abs(depvar_5_0(:,2) - depvar_0_0(:,2));
-alt_error_6 = abs(depvar_6_0(:,2) - depvar_0_0(:,2));
+figure;
 
-error_1_pos = sqrt(error_1(:, 2).^2 + error_1(:, 3).^2 + error_1(:, 4).^2);
-error_2_pos = sqrt(error_2(:, 2).^2 + error_2(:, 3).^2 + error_2(:, 4).^2);
-error_3_pos = sqrt(error_3(:, 2).^2 + error_3(:, 3).^2 + error_3(:, 4).^2);
-error_4_pos = sqrt(error_4(:, 2).^2 + error_4(:, 3).^2 + error_4(:, 4).^2);
-error_5_pos = sqrt(error_5(:, 2).^2 + error_5(:, 3).^2 + error_5(:, 4).^2);
-error_6_pos = sqrt(error_6(:, 2).^2 + error_6(:, 3).^2 + error_6(:, 4).^2);
+subplot(2, 3, 1);
+histogram(r_alt, 15);
+title('Altitude');
+xlabel('Distance from (? = 0, ? = 0) [km]')
+ylabel('Frequency [#/bin]')
+set(gca, 'FontSize', 14);
+grid
 
-time = state_0_0(:, 1);
-time = time - time(1);
+subplot(2, 3, 2);
+histogram(r_vel, 15);
+title('Velocity');
+xlabel('Distance from (? = 0, ? = 0) [km]')
+ylabel('Frequency [#/bin]')
+set(gca, 'FontSize', 14);
+grid
 
-% figure;
-plot(time(10:end-10), depvar_0_0(10:end-10, 2), time(10:end-10), depvar_1_0(10:end-10, 2), time(10:end-10), depvar_2_0(10:end-10, 2),...
-    time(10:end-10), depvar_3_0(10:end-10, 2), time(10:end-10), depvar_5_0(10:end-10, 2), time(10:end-10), depvar_5_0(10:end-10, 2));
+subplot(2, 3, 3);
+histogram(r_gamma, 15);
+title('Flight path angle');
+xlabel('Distance from (? = 0, ? = 0) [km]')
+ylabel('Frequency [#/bin]')
+set(gca, 'FontSize', 14);
+grid
+
+subplot(2, 3, 4);
+histogram(r_lat, 15);
+title('Latitude');
+xlabel('Distance from (? = 0, ? = 0) [km]')
+ylabel('Frequency [#/bin]')
+set(gca, 'FontSize', 14);
+grid
+
+subplot(2, 3, 5);
+histogram(r_lon, 15);
+title('Longitude');
+xlabel('Distance from (? = 0, ? = 0) [km]')
+ylabel('Frequency [#/bin]')
+set(gca, 'FontSize', 14);
+grid
+
+subplot(2, 3, 6);
+histogram(r_hdg, 15);
+title('Heading');
+xlabel('Distance from (? = 0, ? = 0) [km]')
+ylabel('Frequency [#/bin]')
+set(gca, 'FontSize', 14);
+grid
+
+figure;
+subplot(1,2,1);
+histogram(r_mass, 25);
+title('Vehicle density');
+xlabel('Distance from (? = 0, ? = 0) [km]')
+ylabel('Frequency [#/bin]')
+set(gca, 'FontSize', 14);
 grid;
-xlabel('Time [s]');
-ylabel('Altitude [m]');
-legend('RK78', 'RK45', 'RK56', 'RK78', 'DP87', 'ABM', 'BS');
+
+subplot(1,2,2);
+histogram(r_flat, 25);
+title('Earth ellipsoid flatness');
+xlabel('Distance from (? = 0, ? = 0) [km]');
+ylabel('Frequency [#/bin]');
+set(gca, 'FontSize', 14);
+grid;
+
+%%% 3D Histogram
 
 figure;
-%subplot(1, 2, 1);
-semilogy(time(10:end-10), error_1_pos(10:end-10), time(10:end-10), error_2_pos(10:end-10), time(10:end-10),...
-    error_3_pos(10:end-10), time(10:end-10), error_4_pos(10:end-10), time(10:end-10), error_5_pos(10:end-10),...
-    time(10:end-10), error_6_pos(10:end-10), 'LineWidth', 1.5);
-xlabel('Time [s]');
-ylabel('Position error [m]');
+subplot(1, 2, 1);
+histogram2(rad2deg(latlon_alt(:,2)), rad2deg(latlon_alt(:,1)), 15);
+xlabel('Longitude [\circ]')
+ylabel('Latitude [\circ]')
 grid on;
-legend('RK4(5)', 'RK5(6)', 'RK7(8)', 'DP87', 'ABM', 'BS');
-title('Position integration error for different integrators');
+set(gca, 'FontSize', 14);
+
+subplot(1, 2, 2);
+histogram2(rad2deg(latlon_alt(:,2)), rad2deg(latlon_alt(:,1)), 15);
+xlabel('Longitude [\circ]')
+ylabel('Latitude [\circ]')
+grid on;
+set(gca, 'FontSize', 14);
+
+
+%%% Scatter plot
 
 figure;
-%subplot(1, 2, 2);
-semilogy(time(10:end-10), alt_error_1(10:end-10), time(10:end-10), alt_error_2(10:end-10),  time(10:end-10), alt_error_3(10:end-10),...
-     time(10:end-10), alt_error_4(10:end-10), time(10:end-10), alt_error_5(10:end-10),...
-     time(10:end-10), alt_error_6(10:end-10), 'LineWidth', 1.5);
-xlabel('Time [s]');
-ylabel('Altitude error [m]');
+hold on;
+scatter(rad2deg(latlon_alt(:,2)), rad2deg(latlon_alt(:,1)), 50, '.');
+scatter(rad2deg(reference(8)), rad2deg(reference(7)), 80, 'r.');
+legend('Monte Carlo results', 'Nominal run');
+xlabel('Longitude [deg]');
+ylabel('Latitude [deg]');
 grid on;
-legend('RK4(5)', 'RK5(6)', 'RK7(8)', 'DP87', 'ABM', 'BS');
-title('Altitude error');
-
-
-
-%% Question 2
-
-state_0_0 = dlmread(strcat(path, 'stateHistory_0_0.dat'));
-state_7_0 = dlmread(strcat(path, 'stateHistory_interpolated_7_0.dat'));
-state_7_1 = dlmread(strcat(path, 'stateHistory_interpolated_7_1.dat'));
-state_7_2 = dlmread(strcat(path, 'stateHistory_interpolated_7_2.dat'));
-state_7_3 = dlmread(strcat(path, 'stateHistory_interpolated_7_3.dat'));
-state_7_4 = dlmread(strcat(path, 'stateHistory_interpolated_7_4.dat'));
-state_7_5 = dlmread(strcat(path, 'stateHistory_interpolated_7_5.dat'));
-state_7_6 = dlmread(strcat(path, 'stateHistory_interpolated_7_6.dat'));
-
-time = state_0_0(:, 1);
-time = time - time(1);
+set(gca, 'FontSize', 14);
 % 
 % figure;
-% plot3(state_0_0(:, 2), state_0_0(:, 3), state_0_0(:, 4));
-% xlabel('x [m]');
-% ylabel('y [m]');
-% xlabel('z [m]');
-% grid;
-
-error_0 = state_7_0 - state_0_0;
-error_1 = state_7_1 - state_0_0;
-error_2 = state_7_2 - state_0_0;
-error_3 = state_7_3 - state_0_0;
-error_4 = state_7_4 - state_0_0;
-error_5 = state_7_5 - state_0_0;
-error_6 = state_7_6 - state_0_0;
-
-error_0_pos = sqrt(error_0(:, 2).^2 + error_0(:, 3).^2 + error_0(:, 4).^2);
-error_1_pos = sqrt(error_1(:, 2).^2 + error_1(:, 3).^2 + error_1(:, 4).^2);
-error_2_pos = sqrt(error_2(:, 2).^2 + error_2(:, 3).^2 + error_2(:, 4).^2);
-error_3_pos = sqrt(error_3(:, 2).^2 + error_3(:, 3).^2 + error_3(:, 4).^2);
-error_4_pos = sqrt(error_4(:, 2).^2 + error_4(:, 3).^2 + error_4(:, 4).^2);
-error_5_pos = sqrt(error_5(:, 2).^2 + error_5(:, 3).^2 + error_5(:, 4).^2);
-error_6_pos = sqrt(error_6(:, 2).^2 + error_6(:, 3).^2 + error_6(:, 4).^2);
-
-figure;
-semilogy(time(10:end-10), error_0_pos(10:end-10), time(10:end-10), error_1_pos(10:end-10), time(10:end-10),...
-    error_2_pos(10:end-10), '-.', time(10:end-10), error_3_pos(10:end-10), '-.', time(10:end-10), error_4_pos(10:end-10), '--',...
-    time(10:end-10), error_5_pos(10:end-10), '--', time(10:end-10), error_6_pos(10:end-10), '--', 'LineWidth', 1.5);
-xlabel('Time [s]');
-ylabel('Position error [m]');
-grid on;
-legend('Cowell', 'Encke', 'Kepler', 'MEE', 'USM4', 'USM MRP', 'USM EM');
-title('Position integration error for different propagators');
-
-%% Question 3
-
-benchmark = dlmread(strcat(path, 'stateHistory_0_0.dat'));
-time = benchmark(:, 1);
-time = time - time(1);
-
-% Cowell
-cow45 = dlmread(strcat(path, 'stateHistory_interpolated_8_0.dat'));
-cow56 = dlmread(strcat(path, 'stateHistory_interpolated_9_0.dat'));
-cow78 = dlmread(strcat(path, 'stateHistory_interpolated_10_0.dat'));
-
-error_cow45 = cow45 - benchmark;
-error_cow56 = cow56 - benchmark;
-error_cow78 = cow78 - benchmark;
-
-cow45_pos = sqrt(error_cow45(:, 2).^2 + error_cow45(:, 3).^2 + error_cow45(:, 4).^2);
-cow56_pos = sqrt(error_cow56(:, 2).^2 + error_cow56(:, 3).^2 + error_cow56(:, 4).^2);
-cow78_pos = sqrt(error_cow78(:, 2).^2 + error_cow78(:, 3).^2 + error_cow78(:, 4).^2);
-
-% Encke
-encke45 = dlmread(strcat(path, 'stateHistory_interpolated_8_1.dat'));
-encke56 = dlmread(strcat(path, 'stateHistory_interpolated_9_1.dat'));
-encke78 = dlmread(strcat(path, 'stateHistory_interpolated_10_1.dat'));
-
-error_encke45 = encke45 - benchmark;
-error_encke56 = encke56 - benchmark;
-error_encke78 = encke78 - benchmark;
-
-encke45_pos = sqrt(error_encke45(:, 2).^2 + error_encke45(:, 3).^2 + error_encke45(:, 4).^2);
-encke56_pos = sqrt(error_encke56(:, 2).^2 + error_encke56(:, 3).^2 + error_encke56(:, 4).^2);
-encke78_pos = sqrt(error_encke78(:, 2).^2 + error_encke78(:, 3).^2 + error_encke78(:, 4).^2);
-
-% Plot data
-figure;
-semilogy(time(10:end-10), cow45_pos(10:end-10), time(10:end-10), cow56_pos(10:end-10), time(10:end-10),...
-    cow78_pos(10:end-10), time(10:end-10), encke45_pos(10:end-10), '-.', time(10:end-10), encke56_pos(10:end-10), '-.',...
-    time(10:end-10), encke78_pos(10:end-10), '-.', 'LineWidth', 1.5);
-xlabel('Time [s]');
-ylabel('Position error [m]');
-grid on;
-legend('Cowell RK45', 'Cowell RK56', 'Cowell RK78', 'Encke RK45', 'Encke RK56', 'Encke RK78');
-title('Position integration error Cowell/Encke with tolerance of 10^{-5}, min. 0.1 s, max 0.1 s');
+% hold on;
+% scatter(latlon_vel_deg(:,2), latlon_vel_deg(:,1), 50, '.');
+% scatter(rad2deg(reference(8)), rad2deg(reference(7)), 50, 'r.');
+% legend('Monte Carlo results', 'Nominal run');
+% xlabel('Longitude [deg]');
+% ylabel('Latitude [deg]');
+% grid on;
+% 
+% h = heatscatter(latlon_alt_deg(:,2), latlon_alt_deg(:,1), '', 'heatmap.eps', '20');
+% 
+% covar_lat_lon = cov(latlon_alt_deg(:,1), latlon_alt_deg(:,2));
+% ellipse_axes = sqrt(eig(covar_lat_lon));
+% sigma_lat = sqrt(covar_lat_lon(1,1));
+% sigma_lon = sqrt(covar_lat_lon(2,2));
