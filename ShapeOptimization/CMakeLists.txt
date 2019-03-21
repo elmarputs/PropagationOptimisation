@@ -201,9 +201,8 @@ set(PROPAGATION_OPTIMIZATION_2_DYNAMICS_HEADERS
 )
 
 # Add static libraries.
-add_executable(application_ShapeOptimizationPagmo ${PROPAGATION_OPTIMIZATION_2_DYNAMICS_SOURCES} ${PROPAGATION_OPTIMIZATION_2_DYNAMICS_HEADERS})
-setup_executable_target(application_ShapeOptimizationPagmo "${SRCROOT}")
-target_link_libraries(application_ShapeOptimizationPagmo ${TUDAT_PROPAGATION_LIBRARIES} ${Boost_LIBRARIES})
+add_library(tudat_application_propagation_optimization_2 STATIC ${PROPAGATION_OPTIMIZATION_2_DYNAMICS_SOURCES} ${PROPAGATION_OPTIMIZATION_2_DYNAMICS_HEADERS})
+setup_library_target(tudat_application_propagation_optimization_2 "${SRCROOT}")
 
 # Add helloWorld application.
 add_executable(application_PropagationOptimizationShapeOptimization "${SRCROOT}/propagationOptimizationShapeOptimization.cpp")
