@@ -17,10 +17,26 @@
 
 #include <iostream>
 
-using namespace tudat;
-using namespace tudat::aerodynamics;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////            USING STATEMENTS              //////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+using namespace tudat::ephemerides;
+using namespace tudat::interpolators;
+using namespace tudat::numerical_integrators;
+using namespace tudat::spice_interface;
 using namespace tudat::simulation_setup;
+using namespace tudat::basic_astrodynamics;
+using namespace tudat::orbital_element_conversions;
+using namespace tudat::propagators;
+using namespace tudat::aerodynamics;
+using namespace tudat::basic_mathematics;
+using namespace tudat::input_output;
 using namespace tudat::mathematical_constants;
+using namespace tudat;
+using namespace tudat::estimatable_parameters;
+using namespace tudat::statistics;
 
 /*!
  *  Function that creates an aerodynamic database for a capsule, based on a set of shape parameters
@@ -181,25 +197,214 @@ private:
 //! Execute propagation of orbits of Capsule during entry.
 int main( )
 {
-	tudat::spice_interface::loadStandardSpiceKernels();
 
-	std::vector<std::string> bodiesToCreate;
-	bodiesToCreate.push_back("Earth");
-	bodiesToCreate.push_back("Sun");
-	bodiesToCreate.push_back("Moon");
-	std::map<std::string, std::shared_ptr<BodySettings>> bodySettings = getDefaultBodySettings(bodiesToCreate, 0.0-300.0, 24.0*3600.0);
-	for(unsigned int i = 0; i < bodiesToCreate.size(); i++)
-	{
-		bodySettings[bodiesToCreate.at(i)]->rotationModelSettings->resetOriginalFrame("J2000");
-		bodySettings[bodiesToCreate.at(i)]->ephemerisSettings->resetFrameOrientation("J2000");
-	}
-	double doubleValue;
-	std::shared_ptr<double> doublePtr = std::make_shared<double>(doubleValue);
+    std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////            SIMULATION SETTINGS            /////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Create iteration over propagator types
+    std::map< double, Eigen::VectorXd > benchmarkResult;
 
-	std::cout << *doublePtr << std::endl;
-	std::cout << doublePtr << std::endl;
 
-	bodySettings["Earth"]->shapeModelSettings = std::make_shared<OblateSphericalBodyShapeSettings>(6378e3, 1.0/300.0);
+    // Set spherical elements for Capsule.
+    Eigen::Vector6d capsuleSphericalEntryState;
+    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) =
+            spice_interface::getAverageRadius( "Earth" ) + 120.0E3;
+    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::latitudeIndex ) =
+            unit_conversions::convertDegreesToRadians( 0.0 );
+    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::longitudeIndex ) =
+            unit_conversions::convertDegreesToRadians( 68.75 );
+    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 7.83E03;
+    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) =
+            unit_conversions::convertDegreesToRadians( -1.5 );
+    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::headingAngleIndex ) =
+            unit_conversions::convertDegreesToRadians( 34.37 );
+
+    // Vehicle properties
+    double vehicleDensity = 250.0;
+
+    // DEFINE PROBLEM INDEPENDENT VARIABLES HERE:
+    std::vector< double > shapeParameters =
+    { 7.353490006527863,	 2.99718480813317, 	 1.006902199215256,	 -0.9043838974848388,	 0.4513045128015801,	 0.02889224366077636 };
+
+
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////            CREATE ENVIRONMENT            //////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Load Spice kernels.
+    spice_interface::loadStandardSpiceKernels( );
+
+    // Set simulation start epoch.
+    const double simulationStartEpoch = 0.0;
+
+    // Set simulation start epoch.
+    const double simulationEndEpoch = 2*86400;
+
+    // Define body settings for simulation.
+    std::vector< std::string > bodiesToCreate;
+    bodiesToCreate.push_back("Earth");
+
+    // Set Earth gravity field settings.
+    std::map< std::string, std::shared_ptr< BodySettings > > bodySettings =
+            getDefaultBodySettings( bodiesToCreate, simulationStartEpoch - 300.0, simulationEndEpoch + 300.0 );
+
+    // Change default parameters based on earlier analyses
+    bodySettings[ "Earth" ]->gravityFieldSettings =
+            std::make_shared< FromFileSphericalHarmonicsGravityFieldSettings >( ggm02s );
+
+    bodySettings[ "Earth" ]->atmosphereSettings = std::make_shared< AtmosphereSettings >( nrlmsise00 );
+
+    double bodyRadius = 6378.0E3;
+    double bodyFlattening = 1.0 / 300.0;
+    bodySettings[ "Earth" ]->shapeModelSettings = std::make_shared< OblateSphericalBodyShapeSettings >( bodyRadius, bodyFlattening );
+
+    // Create Earth object
+    simulation_setup::NamedBodyMap bodyMap = simulation_setup::createBodies( bodySettings );
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////            CREATE VEHICLE            ////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Create vehicle objects.
+    bodyMap[ "Capsule" ] = std::make_shared< simulation_setup::Body >( );
+
+    // Finalize body creation.
+    setGlobalFrameBodyEphemerides( bodyMap, "Earth", "J2000" );
+
+    double limitLength = ( shapeParameters[ 1 ] - shapeParameters[ 4 ] * ( 1.0 - std::cos( shapeParameters[ 3 ] ) ) ) /
+            std::tan( -shapeParameters[ 3 ] );
+    if( shapeParameters[ 2 ] >= limitLength - 0.01 )
+    {
+        shapeParameters[ 2 ] = limitLength -0.01;
+    }
+
+    // Create capsule.
+    std::shared_ptr< geometric_shapes::Capsule > capsule
+            = std::make_shared< geometric_shapes::Capsule >(
+                shapeParameters[ 0 ], shapeParameters[ 1 ], shapeParameters[ 2 ],
+            shapeParameters[ 3 ], shapeParameters[ 4 ] );
+
+    bodyMap[ "Capsule" ]->setConstantBodyMass(
+                capsule->getVolume( ) * vehicleDensity );
+
+    // Create vehicle aerodynamic coefficients
+    bodyMap[ "Capsule" ]->setAerodynamicCoefficientInterface(
+                getCapsuleCoefficientInterface( capsule, outputPath, "output_", true ) );
+
+
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////            CREATE ACCELERATIONS            /////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Define propagator settings variables.
+    SelectedAccelerationMap accelerationMap;
+    std::vector< std::string > bodiesToPropagate;
+    std::vector< std::string > centralBodies;
+
+    // Define acceleration model settings.
+    std::map< std::string, std::vector< std::shared_ptr< AccelerationSettings > > > accelerationsOfCapsule;
+
+    accelerationsOfCapsule["Earth"].push_back( std::make_shared< SphericalHarmonicAccelerationSettings >(2,0) );
+    accelerationsOfCapsule[ "Earth" ].push_back( std::make_shared< AccelerationSettings >( aerodynamic ) );
+
+    accelerationMap[ "Capsule" ] = accelerationsOfCapsule;
+
+    bodiesToPropagate.push_back( "Capsule" );
+    centralBodies.push_back( "Earth" );
+
+    // Create acceleration models
+    basic_astrodynamics::AccelerationMap accelerationModelMap = createAccelerationModelsMap(
+                bodyMap, accelerationMap, bodiesToPropagate, centralBodies );
+
+    std::shared_ptr< CapsuleAerodynamicGuidance > capsuleGuidance =
+            std::make_shared< CapsuleAerodynamicGuidance >( bodyMap, shapeParameters.at( 5 ) );
+    setGuidanceAnglesFunctions( capsuleGuidance, bodyMap.at( "Capsule" ) );
+
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////            CREATE PROPAGATION SETTINGS            /////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Set Integrator
+    std::shared_ptr< IntegratorSettings< > > integratorSettings =
+            std::make_shared< RungeKuttaVariableStepSizeSettings< > >
+            (simulationStartEpoch, 0.5, RungeKuttaCoefficients::rungeKuttaFehlberg56, std::numeric_limits<double>::epsilon(), 4.0, 1e-5, 1e-5 );
+
+
+    // Convert capsule state from spherical elements to Cartesian elements.
+    Eigen::Vector6d systemInitialState = convertSphericalOrbitalToCartesianState(
+                capsuleSphericalEntryState );
+
+    // Convert the state to the global (inertial) frame.
+    systemInitialState = transformStateToGlobalFrame(
+                systemInitialState, simulationStartEpoch, bodyMap.at( "Earth" )->getRotationalEphemeris( ) );
+
+    // Define termination conditions
+    std::vector< std::shared_ptr< PropagationTerminationSettings > > terminationSettingsList;
+    std::shared_ptr< SingleDependentVariableSaveSettings > terminationDependentVariable =
+            std::make_shared< SingleDependentVariableSaveSettings >( altitude_dependent_variable, "Capsule", "Earth" );
+    terminationSettingsList.push_back(
+                std::make_shared< PropagationDependentVariableTerminationSettings >(
+                    terminationDependentVariable, 25.0E3, true ) );
+    terminationSettingsList.push_back( std::make_shared< PropagationTimeTerminationSettings >(
+                                           24.0 * 3600.0 ) );
+    std::shared_ptr< PropagationTerminationSettings > terminationSettings = std::make_shared<
+            PropagationHybridTerminationSettings >( terminationSettingsList, true );
+
+    // Define dependent variables
+    std::vector< std::shared_ptr< SingleDependentVariableSaveSettings > > dependentVariablesList;
+    dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
+                                          altitude_dependent_variable, "Capsule", "Earth" ) );
+    dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
+                                          airspeed_dependent_variable, "Capsule", "Earth" ) );
+    dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
+                                          aerodynamic_force_coefficients_dependent_variable, "Capsule" ) );
+    // Add variables to get latitude and longitude
+    dependentVariablesList.push_back( std::make_shared< BodyAerodynamicAngleVariableSaveSettings >(
+                                          "Capsule", tudat::reference_frames::AerodynamicsReferenceFrameAngles::latitude_angle ,"Earth" ) );
+    dependentVariablesList.push_back( std::make_shared< BodyAerodynamicAngleVariableSaveSettings >(
+                                          "Capsule", tudat::reference_frames::AerodynamicsReferenceFrameAngles::longitude_angle ,"Earth" ) );
+    dependentVariablesList.push_back( std::make_shared< BodyAerodynamicAngleVariableSaveSettings >(
+                                          "Capsule", tudat::reference_frames::AerodynamicsReferenceFrameAngles::heading_angle ,"Earth" ) );
+    dependentVariablesList.push_back( std::make_shared< BodyAerodynamicAngleVariableSaveSettings >(
+                                          "Capsule", tudat::reference_frames::AerodynamicsReferenceFrameAngles::flight_path_angle ,"Earth" ) );
+    dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
+                                          total_aerodynamic_g_load_variable, "Capsule", "Earth" ) );
+    std::shared_ptr< DependentVariableSaveSettings > dependentVariablesToSave =
+            std::make_shared< DependentVariableSaveSettings >( dependentVariablesList );
+
+
+    // Create propagation settings.
+    std::shared_ptr< TranslationalStatePropagatorSettings<  > > propagatorSettings =
+            std::make_shared< TranslationalStatePropagatorSettings< > >(
+                centralBodies, accelerationModelMap, bodiesToPropagate, systemInitialState,
+                terminationSettings, cowell, dependentVariablesToSave );
+
+    SingleArcDynamicsSimulator< > dynamicsSimulator(
+                bodyMap, integratorSettings, propagatorSettings );
+
+
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////            PERFORM PROPAGATION            /////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    // Create simulation object and propagate dynamics.
+
+    std::map< double, Eigen::VectorXd > propagatedStateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
+    std::map< double, Eigen::VectorXd > dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory( );
+
+
+
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////            PROVIDE OUTPUTS            ///////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
 	// The exit code EXIT_SUCCESS indicates that the program was successfully executed.
 	return EXIT_SUCCESS;
 }
