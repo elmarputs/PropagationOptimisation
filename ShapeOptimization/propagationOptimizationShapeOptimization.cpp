@@ -171,15 +171,21 @@ int main( )
     // Load Spice kernels.
     spice_interface::loadStandardSpiceKernels( );
 
+    pagmo::random_device::set_seed(123);
+
     problem prob{ShapeOptimization( ) };
 
 
     // Instantiate a pagmo algorithm
     algorithm algo{de1220( )};
 
-    pagmo::population::size_type populationSize = 128;
+    pagmo::population::size_type populationSize = 10;
+
+    std::cout << "Creating island...\n";
 
     island isl{algo, prob, populationSize};
+
+    std::cout << "Island created.\n";
 
     // Evolve for 25 generations
     for( int i = 0; i < 25; i++ )
