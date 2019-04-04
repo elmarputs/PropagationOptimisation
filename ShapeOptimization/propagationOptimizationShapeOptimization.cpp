@@ -54,25 +54,33 @@ int main( )
 
     std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
 
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ///////////////////////            CREATE ENVIRONMENT            //////////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //Set seed for reproducible results
+    pagmo::random_device::set_seed(255);
+
     // Load Spice kernels.
     spice_interface::loadStandardSpiceKernels( );
+    std::cout<<"Created Spice Kernels \n";
 
     problem prob{ShapeOptimization( ) };
+    std::cout<<"Created Problem \n";
 
 
     // Instantiate a pagmo algorithm
     algorithm algo{de1220( )};
+    std::cout<<"Created pagmo algorithm \n";
 
-    pagmo::population::size_type populationSize = 128;
+
+    pagmo::population::size_type populationSize = 18;
+    std::cout<<"Created populationSize \n";
+
 
     island isl{algo, prob, populationSize};
+    std::cout<<"Created island \n";
 
     // Evolve for 25 generations
     for( int i = 0; i < 25; i++ )
     {
+        std::cout<<"Iteration"<<i<<"started \n";
         isl.evolve( );
         while( isl.status( ) != pagmo::evolve_status::idle &&
                isl.status( ) != pagmo::evolve_status::idle_error )

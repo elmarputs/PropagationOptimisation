@@ -213,7 +213,7 @@ tudat::ShapeOptimization::ShapeOptimization()
 
 
     // Create Earth object
-    simulation_setup::NamedBodyMap bodyMap_ = simulation_setup::createBodies( bodySettings );
+    bodyMap_ = simulation_setup::createBodies( bodySettings );
 
     // Create vehicle objects.
     bodyMap_[ "Capsule" ] = std::make_shared< simulation_setup::Body >( );
@@ -229,6 +229,7 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
 {
     std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
 
+    std::cout<<"Starting fitness \n";
 
     vector_double fitness;
 
@@ -249,6 +250,9 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     bodyMap_.at("Capsule")->setConstantBodyMass(
                 capsule->getVolume( ) * vehicleDensity );
 
+    std::cout<<"Creating Aerodynamics \n";
+
+
     // Create vehicle aerodynamic coefficients
     bodyMap_.at("Capsule")->setAerodynamicCoefficientInterface(
                 getCapsuleCoefficientInterface( capsule, outputPath, "output_", true ) );
@@ -257,6 +261,8 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////            CREATE ACCELERATIONS            /////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///
+    std::cout<<"Creating Accelerations \n";
     // Define propagator settings variables.
     SelectedAccelerationMap accelerationMap;
     std::vector< std::string > bodiesToPropagate;
@@ -286,6 +292,7 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////            CREATE PROPAGATION SETTINGS            /////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    std::cout<<"Creating Propagator Settings \n";
     // Set Integrator
     std::shared_ptr< IntegratorSettings< > > integratorSettings =
             std::make_shared< RungeKuttaVariableStepSizeSettings< > >
@@ -349,6 +356,7 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////            PERFORM PROPAGATION            /////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    std::cout<<"Propagate Entry \n";
 
     // Create simulation object and propagate dynamics.
 
@@ -365,8 +373,8 @@ std::pair<vector_double, vector_double> tudat::ShapeOptimization::get_bounds() c
 {
 
     std::pair<vector_double, vector_double> bounds;
-    bounds.first = {0.0, 0.0};
-    bounds.second = {1.0, 1.0};
+    bounds.first = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    bounds.second = {2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
 
     return bounds;
 }
