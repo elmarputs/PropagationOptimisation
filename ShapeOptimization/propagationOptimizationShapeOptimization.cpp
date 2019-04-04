@@ -8,8 +8,17 @@
  *    http://tudat.tudelft.nl/LICENSE.
  */
 
-#include <pagmo/archipelago.hpp>
+#include <Tudat/Astrodynamics/Aerodynamics/hypersonicLocalInclinationAnalysis.h>
+#include <Tudat/Mathematics/GeometricShapes/capsule.h>
+#include <Tudat/SimulationSetup/tudatSimulationHeader.h>
+#include <pagmo/problem.hpp>
+#include <pagmo/algorithms/sade.hpp>
+#include <pagmo/algorithms/de1220.hpp>
 #include <pagmo/algorithms/de.hpp>
+#include <pagmo/algorithms/simulated_annealing.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/archipelago.hpp>
+#include <tudatExampleApplications/libraryExamples/PaGMOEx/Problems/saveOptimizationResults.h>
 
 #include "../applicationOutput.h"
 #include "shapeOptimization.h"
@@ -36,6 +45,8 @@ using namespace tudat::mathematical_constants;
 using namespace tudat;
 using namespace tudat::estimatable_parameters;
 using namespace tudat::statistics;
+using namespace pagmo;
+
 
 
 /*
@@ -152,34 +163,41 @@ void performCompositeDesign(const pagmo::problem &prob, const std::string &fileN
 int main( )
 {
 
-	pagmo::random_device::set_seed(123);
+    std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
 
-	pagmo::problem prob{tudat::ShapeOptimization{}};
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////            CREATE ENVIRONMENT            //////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Load Spice kernels.
+    spice_interface::loadStandardSpiceKernels( );
 
-	std::string cppFilePath{ __FILE__ };
-	std::cout << cppFilePath << "\n";
-	std::string cppFolder = cppFilePath.substr(0, cppFilePath.find_last_of("/\\") + 1);
-	std::cout << cppFolder << "\n";
+    problem prob{ShapeOptimization( ) };
 
-	// Run central composite design to explore design space
-	std::cout << "Starting central composite design run...\n";
-	performCompositeDesign(prob, "variableSettings.txt", cppFolder);
 
-	/*
-	pagmo::algorithm algo{pagmo::de{50}};
+    // Instantiate a pagmo algorithm
+    algorithm algo{de1220( )};
 
-    pagmo::archipelago archipelago{4, algo, prob, 100};
+    pagmo::population::size_type populationSize = 128;
 
-    archipelago.evolve();
+    island isl{algo, prob, populationSize};
 
-    archipelago.wait_check();
+    // Evolve for 25 generations
+    for( int i = 0; i < 25; i++ )
+    {
+        isl.evolve( );
+        while( isl.status( ) != pagmo::evolve_status::idle &&
+               isl.status( ) != pagmo::evolve_status::idle_error )
+        {
+            isl.wait( );
+        }
+        isl.wait_check( ); // Raises errors
 
-    std::vector<std::vector<double>> fitness = archipelago.get_champions_f();
-    */
+        // Write current iteration results to file
+        printPopulationToFile( isl.get_population( ).get_x( ), "targetingPropagation_" + std::to_string( i ) + "_" + std::to_string( i ) , false );
+        printPopulationToFile( isl.get_population( ).get_f( ), "targetingPropagation_" + std::to_string( i ) + "_" + std::to_string( i ) , true );
 
-    std::cout << "Evolution finished!\n";
-
-    //std::cout << fitness[0][0] << "\n";
+        std::cout<<i<<std::endl;
+    }
 
 	// The exit code EXIT_SUCCESS indicates that the program was successfully executed.
 	return EXIT_SUCCESS;
