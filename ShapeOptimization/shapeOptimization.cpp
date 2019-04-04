@@ -228,6 +228,7 @@ tudat::ShapeOptimization::ShapeOptimization()
 vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decisionVariables) const
 {
     std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
+	std::cout << "Fitness function called!\n";
 
     std::cout<<"Starting fitness \n";
 
@@ -240,6 +241,8 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     {
         shapeParameters[ 2 ] = limitLength -0.01;
     }
+
+    std::cout << "Creating capsule...\n";
 
     // Create capsule.
     std::shared_ptr< geometric_shapes::Capsule > capsule
@@ -257,6 +260,7 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     bodyMap_.at("Capsule")->setAerodynamicCoefficientInterface(
                 getCapsuleCoefficientInterface( capsule, outputPath, "output_", true ) );
 
+	std::cout << "Aerodynamic coefficient interface set\n";
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////            CREATE ACCELERATIONS            /////////////////////////////////////////////////////
@@ -283,11 +287,13 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     basic_astrodynamics::AccelerationMap accelerationModelMap = createAccelerationModelsMap(
                 bodyMap_, accelerationMap, bodiesToPropagate, centralBodies );
 
+    std::cout << "Created acceleration map.\n";
+
     std::shared_ptr< CapsuleAerodynamicGuidance > capsuleGuidance =
             std::make_shared< CapsuleAerodynamicGuidance >( bodyMap_, shapeParameters.at( 5 ) );
     setGuidanceAnglesFunctions( capsuleGuidance, bodyMap_.at( "Capsule" ) );
 
-
+	std::cout << "Guidance angle function set\n";
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////            CREATE PROPAGATION SETTINGS            /////////////////////////////////////////////////
@@ -373,8 +379,8 @@ std::pair<vector_double, vector_double> tudat::ShapeOptimization::get_bounds() c
 {
 
     std::pair<vector_double, vector_double> bounds;
-    bounds.first = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-    bounds.second = {2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    bounds.first = {7.0, 2.5, 0.5, -1.5, 0.0, 0.01};
+    bounds.second = {8.0, 3.5, 1.5, -0.5, 1.0, 0.04};
 
     return bounds;
 }
