@@ -160,6 +160,14 @@ private:
 
 tudat::ShapeOptimization::ShapeOptimization()
 {
+
+
+
+
+}
+
+vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decisionVariables) const
+{
     // Set spherical elements for Capsule.
     Eigen::Vector6d capsuleSphericalEntryState;
     capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) =
@@ -179,7 +187,7 @@ tudat::ShapeOptimization::ShapeOptimization()
 
     // DEFINE PROBLEM INDEPENDENT VARIABLES HERE:
     std::vector< double > shapeParameters =
-    { 7.353490006527863,	 2.99718480813317, 	 1.006902199215256,	 -0.9043838974848388,	 0.4513045128015801,	 0.02889224366077636 };
+            { 7.353490006527863,	 2.99718480813317, 	 1.006902199215256,	 -0.9043838974848388,	 0.4513045128015801,	 0.02889224366077636 };
 
     // Set simulation start epoch.
     double simulationStartEpoch = 0.0;
@@ -221,12 +229,6 @@ tudat::ShapeOptimization::ShapeOptimization()
     // Finalize body creation.
     setGlobalFrameBodyEphemerides( bodyMap_, "Earth", "J2000" );
 
-
-
-}
-
-vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decisionVariables) const
-{
     std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
 	std::cout << "Fitness function called!\n";
 
@@ -234,7 +236,7 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
 
     vector_double fitness;
 
-    std::vector< double > shapeParameters = decisionVariables;
+    shapeParameters = decisionVariables;
     double limitLength = ( shapeParameters[ 1 ] - shapeParameters[ 4 ] * ( 1.0 - std::cos( shapeParameters[ 3 ] ) ) ) /
             std::tan( -shapeParameters[ 3 ] );
     if( shapeParameters[ 2 ] >= limitLength - 0.01 )
@@ -369,7 +371,8 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     std::map< double, Eigen::VectorXd > propagatedStateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
     std::map< double, Eigen::VectorXd > dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory( );
 
-
+	std::shared_ptr<PropagationTerminationDetails > propagationTerminationDetails = dynamicsSimulator.getPropagationTerminationReason();
+	std::cout << "Termination reason: " << propagationTerminationDetails->getPropagationTerminationReason() << std::endl;
 
     fitness.push_back(0.0);
     return fitness;

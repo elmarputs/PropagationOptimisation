@@ -37,11 +37,11 @@ namespace tudat
 
 
     private:
-        simulation_setup::NamedBodyMap bodyMap_;
-        double simulationStartEpoch;
-        double simulationEndEpoch;
-        double vehicleDensity;
-        Eigen::Vector6d capsuleSphericalEntryState;
+		mutable simulation_setup::NamedBodyMap bodyMap_;
+		mutable double simulationStartEpoch;
+		mutable double simulationEndEpoch;
+		mutable double vehicleDensity;
+		mutable Eigen::Vector6d capsuleSphericalEntryState;
     };
 
 }
