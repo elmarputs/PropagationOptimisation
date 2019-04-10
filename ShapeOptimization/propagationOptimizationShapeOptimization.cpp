@@ -8,10 +8,7 @@
  *    http://tudat.tudelft.nl/LICENSE.
  */
 
-#include <Tudat/Astrodynamics/Aerodynamics/hypersonicLocalInclinationAnalysis.h>
-#include <Tudat/Mathematics/GeometricShapes/capsule.h>
-#include <Tudat/SimulationSetup/tudatSimulationHeader.h>
-#include <pagmo/problem.hpp>
+#include "shapeOptimization.h"
 #include <pagmo/algorithms/sade.hpp>
 #include <pagmo/algorithms/de1220.hpp>
 #include <pagmo/algorithms/de.hpp>
@@ -19,11 +16,6 @@
 #include <pagmo/io.hpp>
 #include <pagmo/archipelago.hpp>
 #include <tudatExampleApplications/libraryExamples/PaGMOEx/Problems/saveOptimizationResults.h>
-
-#include "../applicationOutput.h"
-#include "shapeOptimization.h"
-
-#include <iostream>
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -143,6 +135,7 @@ void performCompositeDesign(const pagmo::problem &prob, const std::string &fileN
 		std::cout << "Running design " << design << "...\n";
 
 		Eigen::VectorXd cv = ccdMatrix.row(design);
+		std::cout << cv << std::endl;
 		// Convert Eigen vector to std::vector for use with fitness function
 		const std::vector<double> controlVars{&cv[0], cv.data() + cv.size()};
 
@@ -150,6 +143,7 @@ void performCompositeDesign(const pagmo::problem &prob, const std::string &fileN
 		std::vector<double> fitness = prob.fitness(controlVars);
 		Eigen::VectorXd objectives(1);
 		objectives << fitness.at(0);
+		std::cout << "Fitness: " << objectives << std::endl;
 		Eigen::VectorXd outputVector(cv.size() + objectives.size());
 		outputVector << cv, objectives;
 		ccdFitnessMap[design] = outputVector;
@@ -162,55 +156,66 @@ void performCompositeDesign(const pagmo::problem &prob, const std::string &fileN
 
 int main( )
 {
-
-    std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
+	bool runOptimisation = true;
+    //std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
+    std::string outputPath{__FILE__};
+    outputPath = outputPath.substr(0, outputPath.find_last_of("/\\") + 1);
 
     //Set seed for reproducible results
     pagmo::random_device::set_seed(255);
 
-    // Load Spice kernels.
-    spice_interface::loadStandardSpiceKernels( );
-    std::cout<<"Created Spice Kernels \n";
-
-    pagmo::random_device::set_seed(123);
-
     problem prob{ShapeOptimization( ) };
     std::cout<<"Created Problem \n";
 
+	// Perform central composite design
+	//performCompositeDesign(prob, "variableSettings.txt", outputPath);
 
-    // Instantiate a pagmo algorithm
-    algorithm algo{de1220( )};
-    std::cout<<"Created pagmo algorithm \n";
+	if(runOptimisation)
+	{
+
+		// Instantiate a pagmo algorithm
+		algorithm algo{de()};
+		std::cout << "Created pagmo algorithm \n";
 
 
-    pagmo::population::size_type populationSize = 18;
-    std::cout<<"Created populationSize \n";
+		pagmo::population::size_type populationSize = 10;
+		std::cout << "Created populationSize \n";
 
 
-    island isl{algo, prob, populationSize};
-    std::cout<<"Created island \n";
+		archipelago arch(4, algo, prob, populationSize);
+		//island isl(algo, prob, populationSize);
+		std::cout << "Created archipelago \n";
 
-    std::cout << "Island created.\n";
+		std::cout << arch[0].get_name() << std::endl;
 
-    // Evolve for 25 generations
-    for( int i = 0; i < 25; i++ )
-    {
-        std::cout<<"Iteration"<<i<<"started \n";
-        isl.evolve( );
-        while( isl.status( ) != pagmo::evolve_status::idle &&
-               isl.status( ) != pagmo::evolve_status::idle_error )
-        {
-            isl.wait( );
-        }
-        isl.wait_check( ); // Raises errors
-
-        // Write current iteration results to file
-        printPopulationToFile( isl.get_population( ).get_x( ), "targetingPropagation_" + std::to_string( i ) + "_" + std::to_string( i ) , false );
-        printPopulationToFile( isl.get_population( ).get_f( ), "targetingPropagation_" + std::to_string( i ) + "_" + std::to_string( i ) , true );
-
-        std::cout<<i<<std::endl;
-    }
-
+		// Evolve for 25 generations
+		for (int i = 0; i < 25; i++)
+		{
+			std::cout << "Iteration " << i << " started \n";
+			arch.evolve();
+			while (arch.status() != pagmo::evolve_status::idle &&
+				   arch.status() != pagmo::evolve_status::idle_error)
+			{
+				arch.wait();
+			}
+			std::cout << "Waiting for islands to finish evolution...\n";
+			try
+			{
+				arch.wait_check(); // Raises errors
+			}
+			catch(std::exception& e)
+			{
+				std::cout << "Something went wrong during evolution. Quitting application...\n";
+				std::cout << "Exception: " << e.what() << std::endl;
+				return 1;
+			}
+			std::cout << "Writing champions to file...\n";
+			// Write current iteration results to file
+			std::cout << arch.get_champions_f()[0][0] << std::endl;
+			//printPopulationToFile(arch.get_champions_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), false);
+			//printPopulationToFile(isl.get_population().get_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), true);
+		}
+	}
 	// The exit code EXIT_SUCCESS indicates that the program was successfully executed.
 	return EXIT_SUCCESS;
 }

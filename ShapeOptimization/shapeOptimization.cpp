@@ -1,13 +1,4 @@
 #include "shapeOptimization.h"
-#include <Tudat/Astrodynamics/Aerodynamics/hypersonicLocalInclinationAnalysis.h>
-#include <Tudat/Mathematics/GeometricShapes/capsule.h>
-#include <Tudat/SimulationSetup/tudatSimulationHeader.h>
-#include <pagmo/problem.hpp>
-
-#include "../applicationOutput.h"
-
-#include <iostream>
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////            USING STATEMENTS              //////////////////////////////////////////////////////
@@ -157,94 +148,92 @@ private:
 
 }
 
+// Static member variables
+simulation_setup::NamedBodyMap ShapeOptimization::bodyMap_;
+Eigen::Vector6d ShapeOptimization::capsuleSphericalEntryState;
+double ShapeOptimization::simulationStartEpoch = 0.0;
+double ShapeOptimization::simulationEndEpoch = 2*86400;
+bool ShapeOptimization::isSpiceLoaded = false;
 
 tudat::ShapeOptimization::ShapeOptimization()
 {
+	//std::cout << "ShapeOptimization problem constructed.\n";
+	//std::cout << "Setting up Tudat...\n";
+
+	if( !isSpiceLoaded )
+	{
+		spice_interface::loadStandardSpiceKernels( );
+		std::cout<<"Created Spice Kernels \n";
+		isSpiceLoaded = true;
+	}
+
+	// Set spherical elements for Capsule
+	capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) =
+			spice_interface::getAverageRadius( "Earth" ) + 120.0E3;
+	capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::latitudeIndex ) =
+			unit_conversions::convertDegreesToRadians( 0.0 );
+	capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::longitudeIndex ) =
+			unit_conversions::convertDegreesToRadians( 68.75 );
+	capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 7.83E03;
+	capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) =
+			unit_conversions::convertDegreesToRadians( -1.5 );
+	capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::headingAngleIndex ) =
+			unit_conversions::convertDegreesToRadians( 34.37 );
 
 
+	std::vector<std::string> bodiesToCreate;
+	bodiesToCreate.push_back("Earth");
 
+	std::map<std::string, std::shared_ptr<simulation_setup::BodySettings> > bodySettings_;
+
+	// Set Earth gravity field settings.
+	bodySettings_ =
+			getDefaultBodySettings(bodiesToCreate, simulationStartEpoch - 300.0, simulationEndEpoch + 300.0);
+
+	// Change default parameters based on earlier analyses
+	bodySettings_["Earth"]->gravityFieldSettings =
+			std::make_shared<FromFileSphericalHarmonicsGravityFieldSettings>(ggm02s);
+
+	bodySettings_["Earth"]->atmosphereSettings = std::make_shared<AtmosphereSettings>(nrlmsise00);
+
+	double bodyRadius = 6378.0E3;
+	double bodyFlattening = 1.0 / 300.0;
+	bodySettings_["Earth"]->shapeModelSettings = std::make_shared<OblateSphericalBodyShapeSettings>(bodyRadius, bodyFlattening);
+
+	bodySettings_["Earth"]->rotationModelSettings->resetOriginalFrame("J2000");
+	bodySettings_["Earth"]->ephemerisSettings->resetFrameOrientation("J2000");
+
+	// Create Earth object
+	bodyMap_ = simulation_setup::createBodies(bodySettings_);
 
 }
 
 vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decisionVariables) const
 {
-    // Set spherical elements for Capsule.
-    Eigen::Vector6d capsuleSphericalEntryState;
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::radiusIndex ) =
-            spice_interface::getAverageRadius( "Earth" ) + 120.0E3;
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::latitudeIndex ) =
-            unit_conversions::convertDegreesToRadians( 0.0 );
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::longitudeIndex ) =
-            unit_conversions::convertDegreesToRadians( 68.75 );
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::speedIndex ) = 7.83E03;
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::flightPathIndex ) =
-            unit_conversions::convertDegreesToRadians( -1.5 );
-    capsuleSphericalEntryState( SphericalOrbitalStateElementIndices::headingAngleIndex ) =
-            unit_conversions::convertDegreesToRadians( 34.37 );
+	//std::cout << "Fitness\n";
 
-    // Vehicle properties
-    double vehicleDensity = 250.0;
+	// Vehicle properties
+	double vehicleDensity = 250.0;
 
-    // DEFINE PROBLEM INDEPENDENT VARIABLES HERE:
-    std::vector< double > shapeParameters =
-            { 7.353490006527863,	 2.99718480813317, 	 1.006902199215256,	 -0.9043838974848388,	 0.4513045128015801,	 0.02889224366077636 };
+	bodyMap_[ "Capsule" ] = std::make_shared< simulation_setup::Body >( );
+	std::shared_ptr<Body> capsulePtr = bodyMap_["Capsule"];
 
-    // Set simulation start epoch.
-    double simulationStartEpoch = 0.0;
-
-    // Set simulation start epoch.
-    double simulationEndEpoch = 2*86400;
-
-    // Define body settings for simulation.
-    std::vector< std::string > bodiesToCreate;
-    bodiesToCreate.push_back("Earth");
-
-
-    // Set Earth gravity field settings.
-    std::map< std::string, std::shared_ptr< BodySettings > > bodySettings =
-            getDefaultBodySettings( bodiesToCreate, simulationStartEpoch - 300.0, simulationEndEpoch + 300.0 );
-
-
-
-    // Change default parameters based on earlier analyses
-    bodySettings[ "Earth" ]->gravityFieldSettings =
-            std::make_shared< FromFileSphericalHarmonicsGravityFieldSettings >( ggm02s );
-
-    bodySettings[ "Earth" ]->atmosphereSettings = std::make_shared< AtmosphereSettings >( nrlmsise00 );
-
-    double bodyRadius = 6378.0E3;
-    double bodyFlattening = 1.0 / 300.0;
-    bodySettings[ "Earth" ]->shapeModelSettings = std::make_shared< OblateSphericalBodyShapeSettings >( bodyRadius, bodyFlattening );
-
-    bodySettings[ "Earth"]->rotationModelSettings->resetOriginalFrame( "J2000" );
-    bodySettings[ "Earth"]->ephemerisSettings->resetFrameOrientation( "J2000" );
-
-
-    // Create Earth object
-    bodyMap_ = simulation_setup::createBodies( bodySettings );
-
-    // Create vehicle objects.
-    bodyMap_[ "Capsule" ] = std::make_shared< simulation_setup::Body >( );
-
-    // Finalize body creation.
-    setGlobalFrameBodyEphemerides( bodyMap_, "Earth", "J2000" );
+	// Finalize body creation.
+	setGlobalFrameBodyEphemerides( bodyMap_, "Earth", "J2000" );
 
     std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
-	std::cout << "Fitness function called!\n";
-
-    std::cout<<"Starting fitness \n";
 
     vector_double fitness;
 
-    shapeParameters = decisionVariables;
+    std::vector<double> shapeParameters = decisionVariables;
+	//std::vector< double > shapeParameters =
+	//		{ 8.148730872315355, 2.720324489288032, 0.2270385167794302, -0.4037530896422072, 0.2781438040896319, 0.4559143679738996 };
     double limitLength = ( shapeParameters[ 1 ] - shapeParameters[ 4 ] * ( 1.0 - std::cos( shapeParameters[ 3 ] ) ) ) /
             std::tan( -shapeParameters[ 3 ] );
     if( shapeParameters[ 2 ] >= limitLength - 0.01 )
     {
         shapeParameters[ 2 ] = limitLength -0.01;
     }
-
-    std::cout << "Creating capsule...\n";
 
     // Create capsule.
     std::shared_ptr< geometric_shapes::Capsule > capsule
@@ -255,20 +244,15 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     bodyMap_.at("Capsule")->setConstantBodyMass(
                 capsule->getVolume( ) * vehicleDensity );
 
-    std::cout<<"Creating Aerodynamics \n";
-
-
     // Create vehicle aerodynamic coefficients
     bodyMap_.at("Capsule")->setAerodynamicCoefficientInterface(
                 getCapsuleCoefficientInterface( capsule, outputPath, "output_", true ) );
 
-	std::cout << "Aerodynamic coefficient interface set\n";
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////            CREATE ACCELERATIONS            /////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ///
-    std::cout<<"Creating Accelerations \n";
+
     // Define propagator settings variables.
     SelectedAccelerationMap accelerationMap;
     std::vector< std::string > bodiesToPropagate;
@@ -289,18 +273,16 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     basic_astrodynamics::AccelerationMap accelerationModelMap = createAccelerationModelsMap(
                 bodyMap_, accelerationMap, bodiesToPropagate, centralBodies );
 
-    std::cout << "Created acceleration map.\n";
 
     std::shared_ptr< CapsuleAerodynamicGuidance > capsuleGuidance =
             std::make_shared< CapsuleAerodynamicGuidance >( bodyMap_, shapeParameters.at( 5 ) );
     setGuidanceAnglesFunctions( capsuleGuidance, bodyMap_.at( "Capsule" ) );
 
-	std::cout << "Guidance angle function set\n";
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////            CREATE PROPAGATION SETTINGS            /////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    std::cout<<"Creating Propagator Settings \n";
+
     // Set Integrator
     std::shared_ptr< IntegratorSettings< > > integratorSettings =
             std::make_shared< RungeKuttaVariableStepSizeSettings< > >
@@ -347,7 +329,7 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
                                           total_aerodynamic_g_load_variable, "Capsule", "Earth" ) );
     std::shared_ptr< DependentVariableSaveSettings > dependentVariablesToSave =
-            std::make_shared< DependentVariableSaveSettings >( dependentVariablesList );
+            std::make_shared< DependentVariableSaveSettings >( dependentVariablesList, false );
 
 
     // Create propagation settings.
@@ -356,25 +338,20 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
                 centralBodies, accelerationModelMap, bodiesToPropagate, systemInitialState,
                 terminationSettings, cowell, dependentVariablesToSave );
 
-    SingleArcDynamicsSimulator< > dynamicsSimulator(
-                bodyMap_, integratorSettings, propagatorSettings );
-
-
-
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////            PERFORM PROPAGATION            /////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    std::cout<<"Propagate Entry \n";
 
     // Create simulation object and propagate dynamics.
+	SingleArcDynamicsSimulator< > dynamicsSimulator(
+			bodyMap_, integratorSettings, propagatorSettings, true, true );
 
     std::map< double, Eigen::VectorXd > propagatedStateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
     std::map< double, Eigen::VectorXd > dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory( );
 
-	std::shared_ptr<PropagationTerminationDetails > propagationTerminationDetails = dynamicsSimulator.getPropagationTerminationReason();
-	std::cout << "Termination reason: " << propagationTerminationDetails->getPropagationTerminationReason() << std::endl;
+	double propagationTime = propagatedStateHistory.rbegin()->first;
 
-    fitness.push_back(0.0);
+    fitness.push_back(propagationTime);
     return fitness;
 }
 
@@ -382,11 +359,14 @@ std::pair<vector_double, vector_double> tudat::ShapeOptimization::get_bounds() c
 {
 
     std::pair<vector_double, vector_double> bounds;
-    bounds.first = {7.0, 2.5, 0.5, -1.5, 0.0, 0.01};
-    bounds.second = {8.0, 3.5, 1.5, -0.5, 1.0, 0.04};
+    bounds.first = {7.9, 2.5, 0.15, -1.0, 0.15, 0.03};
+    bounds.second = {8.4, 3.5, 0.80, -0.3, 0.35, 0.05};
 
     return bounds;
 }
 
-
+pagmo::thread_safety tudat::ShapeOptimization::get_thread_safety() const
+{
+	return pagmo::thread_safety::none;
+}
 

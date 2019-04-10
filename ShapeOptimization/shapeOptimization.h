@@ -1,22 +1,14 @@
 #ifndef TUDAT_APPLICATION_PAGMO_PROBLEM_SHAPE_OPTIMIZATION_H
 #define TUDAT_APPLICATION_PAGMO_PROBLEM_SHAPE_OPTIMIZATION_H
 
-#include <tudat/SimulationSetup/tudatSimulationHeader.h>
-#include <vector>
+#include <Tudat/SimulationSetup/tudatSimulationHeader.h>
 #include <Tudat/Astrodynamics/Aerodynamics/hypersonicLocalInclinationAnalysis.h>
 #include <Tudat/Mathematics/GeometricShapes/capsule.h>
-#include <Tudat/SimulationSetup/tudatSimulationHeader.h>
 #include <pagmo/problem.hpp>
 
 #include "../applicationOutput.h"
 
-#include <iostream>
-
 #include <boost/filesystem.hpp>
-
-#include "applicationOutput.h"
-
-#include "Tudat/InputOutput/basicInputOutput.h"
 
 
 typedef std::vector<double> vector_double;
@@ -28,20 +20,31 @@ namespace tudat
     {
     public:
 
+    	// Static variables
+	    static simulation_setup::NamedBodyMap bodyMap_;
+	    static Eigen::Vector6d capsuleSphericalEntryState;
+	    static double simulationStartEpoch;
+	    static double simulationEndEpoch;
+	    static bool isSpiceLoaded;
+
         // Empty constructor
         ShapeOptimization();
+
 
         vector_double fitness(const vector_double &cv) const;
 
         std::pair<vector_double, vector_double> get_bounds() const;
 
+        pagmo::thread_safety get_thread_safety() const;
+
+        template <typename Archive>
+        void serialize(Archive &ar)
+        {
+        	ar(simulationStartEpoch, simulationEndEpoch);
+        }
+
 
     private:
-		mutable simulation_setup::NamedBodyMap bodyMap_;
-		mutable double simulationStartEpoch;
-		mutable double simulationEndEpoch;
-		mutable double vehicleDensity;
-		mutable Eigen::Vector6d capsuleSphericalEntryState;
     };
 
 }
@@ -73,4 +76,7 @@ void printPopulationToFile( const std::vector< std::vector< double > >& populati
     }
 }
 */
+
+PAGMO_REGISTER_PROBLEM(tudat::ShapeOptimization)
+
 #endif
