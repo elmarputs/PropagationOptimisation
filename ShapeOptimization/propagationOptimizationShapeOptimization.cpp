@@ -15,7 +15,7 @@
 #include <pagmo/algorithms/simulated_annealing.hpp>
 #include <pagmo/io.hpp>
 #include <pagmo/archipelago.hpp>
-#include <tudatExampleApplications/libraryExamples/PaGMOEx/Problems/saveOptimizationResults.h>
+#include "saveOptimizationResults.h"
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -212,8 +212,8 @@ int main( )
 			std::cout << "Writing champions to file...\n";
 			// Write current iteration results to file
 			//std::cout << arch.get_champions_f()[0][0] << std::endl;
-			//printPopulationToFile(arch.get_champions_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), false);
-			//printPopulationToFile(isl.get_population().get_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), true);
+            //printPopulationToFile(arch.get_champions_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), false);
+            printPopulationToFile(arch.get_population().get_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), true);
 		}
 	}
 	// The exit code EXIT_SUCCESS indicates that the program was successfully executed.

@@ -28,7 +28,7 @@ namespace tudat
 	    static bool isSpiceLoaded;
 
 	    double heatLoadFunction( const double, const double, tudat::simulation_setup::NamedBodyMap& ) const;
-
+        double flightRangeFunction( const double, const double, tudat::simulation_setup::NamedBodyMap& ) const;
 	    // Empty constructor
         ShapeOptimization();
 
@@ -36,8 +36,6 @@ namespace tudat
         vector_double fitness( const vector_double& ) const;
 
         std::pair<vector_double, vector_double> get_bounds() const;
-
-        pagmo::thread_safety get_thread_safety() const;
 
         template <typename Archive>
         void serialize(Archive &ar)

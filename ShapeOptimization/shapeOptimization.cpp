@@ -169,6 +169,16 @@ inline double tudat::ShapeOptimization::heatLoadFunction( const double time, con
 	return heatRate;
 }
 
+inline double tudat::ShapeOptimization::flightRangeFunction( const double time, const double state, NamedBodyMap& bodyMap_ ) const
+{
+    std::shared_ptr<aerodynamics::AtmosphericFlightConditions> atmosphericFlightConditions;
+    atmosphericFlightConditions = std::dynamic_pointer_cast<aerodynamics::AtmosphericFlightConditions>(bodyMap_.at("Capsule")->getFlightConditions());
+
+    double rangeVelocity = atmosphericFlightConditions->getCurrentAirspeedBasedVelocity().norm();
+
+    return rangeVelocity;
+}
+
 
 tudat::ShapeOptimization::ShapeOptimization()
 {
@@ -356,18 +366,28 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
                 terminationSettings, cowell, dependentVariablesToSave );
 
     double initialHeatLoad = 0;
+    double initialFlightRange = 0;
 
     std::function<double (double, double)> heatLoadDerivativeFunction = std::bind(&tudat::ShapeOptimization::heatLoadFunction, this,
     		std::placeholders::_1, std::placeholders::_2, bodyMap_);
+
+    std::function<double (double, double)> flightRangeDerivativeFunction = std::bind(&tudat::ShapeOptimization::flightRangeFunction, this,
+            std::placeholders::_1, std::placeholders::_2, bodyMap_);
 
     // Heat load propagator
     std::shared_ptr< CustomStatePropagatorSettings<double, double> > heatLoadPropagatorSettings =
     		std::make_shared< CustomStatePropagatorSettings<double, double> >(heatLoadDerivativeFunction, initialHeatLoad,
     				terminationSettings);
 
+    // Flight range propagator
+    std::shared_ptr< CustomStatePropagatorSettings<double, double> > flightRangePropagatorSettings =
+            std::make_shared< CustomStatePropagatorSettings<double, double> >(flightRangeDerivativeFunction, initialFlightRange,
+                    terminationSettings);
+
 	std::vector< std::shared_ptr< SingleArcPropagatorSettings< double > > > propagatorSettingsVector;
 	propagatorSettingsVector.push_back( translationalPropagatorSettings );
 	propagatorSettingsVector.push_back( heatLoadPropagatorSettings );
+    propagatorSettingsVector.push_back( flightRangePropagatorSettings );
 
 	std::shared_ptr< PropagatorSettings< double > > propagatorSettings =
 			std::make_shared< MultiTypePropagatorSettings< double > >( propagatorSettingsVector, terminationSettings );
@@ -403,9 +423,4 @@ std::pair<vector_double, vector_double> tudat::ShapeOptimization::get_bounds() c
     bounds.second = {8.4, 3.5, 0.80, -0.3, 0.35, 0.05};
 
     return bounds;
-}
-
-pagmo::thread_safety tudat::ShapeOptimization::get_thread_safety() const
-{
-	return pagmo::thread_safety::none;
 }
