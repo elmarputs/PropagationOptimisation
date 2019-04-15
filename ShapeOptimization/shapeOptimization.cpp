@@ -175,7 +175,7 @@ inline double tudat::ShapeOptimization::flightRangeFunction( const double time, 
     atmosphericFlightConditions = std::dynamic_pointer_cast<aerodynamics::AtmosphericFlightConditions>(bodyMap_.at("Capsule")->getFlightConditions());
 
     double rangeVelocity = atmosphericFlightConditions->getCurrentAirspeedBasedVelocity().norm();
-
+    //std::cout<<"Current Velocity:"<<rangeVelocity<<"\n";
     return rangeVelocity;
 }
 
@@ -404,18 +404,16 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
     std::map< double, Eigen::VectorXd > dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory( );
 
 	double propagationTime = propagatedStateHistory.rbegin()->first;
-	Eigen::Vector7d finalState = propagatedStateHistory.rbegin()->second;
-	Eigen::Vector7d initialState = propagatedStateHistory.begin()->second;
+    Eigen::VectorXd finalState = propagatedStateHistory.rbegin()->second;
+    Eigen::VectorXd initialState = propagatedStateHistory.begin()->second;
 	double integratedHeatRateFinal = finalState(6);
-	double integratedHeatRateInit = initialState(6);
 
     double integratedFlightRangeFinal = finalState(7);
-    double integratedFlightRangeInit = initialState(7);
 
 	//std::cout << "Initial heat load: " << integratedHeatRateInit << ", final: " << integratedHeatRateFinal << "\n";
 
     fitness.push_back( integratedHeatRateFinal );
-    fitness.push_back( integratedFlightRangeFinal );
+    fitness.push_back( -1*integratedFlightRangeFinal );
     return fitness;
 }
 
