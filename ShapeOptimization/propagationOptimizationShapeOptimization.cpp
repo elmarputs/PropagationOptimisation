@@ -156,6 +156,7 @@ void performCompositeDesign(const pagmo::problem &prob, const std::string &fileN
 
 int main( )
 {
+
 	bool runOptimisation = true;
     //std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
     std::string outputPath{__FILE__};
@@ -170,6 +171,7 @@ int main( )
 	// Perform central composite design
 	//performCompositeDesign(prob, "variableSettings.txt", outputPath);
 
+
 	if(runOptimisation)
 	{
 
@@ -182,11 +184,9 @@ int main( )
 		std::cout << "Created populationSize \n";
 
 
-		archipelago arch(4, algo, prob, populationSize);
-		//island isl(algo, prob, populationSize);
+		//archipelago arch(4, algo, prob, populationSize);
+		island arch(algo, prob, populationSize);
 		std::cout << "Created archipelago \n";
-
-		std::cout << arch[0].get_name() << std::endl;
 
 		// Evolve for 25 generations
 		for (int i = 0; i < 25; i++)
@@ -211,7 +211,7 @@ int main( )
 			}
 			std::cout << "Writing champions to file...\n";
 			// Write current iteration results to file
-			std::cout << arch.get_champions_f()[0][0] << std::endl;
+			//std::cout << arch.get_champions_f()[0][0] << std::endl;
 			//printPopulationToFile(arch.get_champions_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), false);
 			//printPopulationToFile(isl.get_population().get_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), true);
 		}

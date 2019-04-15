@@ -27,11 +27,13 @@ namespace tudat
 	    static double simulationEndEpoch;
 	    static bool isSpiceLoaded;
 
-        // Empty constructor
+	    double heatLoadFunction( const double, const double, tudat::simulation_setup::NamedBodyMap& ) const;
+
+	    // Empty constructor
         ShapeOptimization();
 
 
-        vector_double fitness(const vector_double &cv) const;
+        vector_double fitness( const vector_double& ) const;
 
         std::pair<vector_double, vector_double> get_bounds() const;
 
@@ -40,11 +42,12 @@ namespace tudat
         template <typename Archive>
         void serialize(Archive &ar)
         {
-        	ar(simulationStartEpoch, simulationEndEpoch);
+        	//ar(simulationStartEpoch, simulationEndEpoch);
         }
 
 
     private:
+
     };
 
 }

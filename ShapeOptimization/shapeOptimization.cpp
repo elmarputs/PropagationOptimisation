@@ -131,6 +131,7 @@ public:
     //! The aerodynamic angles are to be computed here
     void updateGuidance( const double time ) override
     {
+
         currentAngleOfAttack_ = fixedAngleOfAttack_;
         currentAngleOfSideslip_ = 0.0;
         currentBankAngle_ = 0.0;
@@ -155,9 +156,23 @@ double ShapeOptimization::simulationStartEpoch = 0.0;
 double ShapeOptimization::simulationEndEpoch = 2*86400;
 bool ShapeOptimization::isSpiceLoaded = false;
 
+// Heat load derivative function
+inline double tudat::ShapeOptimization::heatLoadFunction( const double time, const double state, NamedBodyMap& bodyMap_ ) const
+{
+	std::shared_ptr<aerodynamics::AtmosphericFlightConditions> atmosphericFlightConditions;
+	atmosphericFlightConditions = std::dynamic_pointer_cast<aerodynamics::AtmosphericFlightConditions>(bodyMap_.at("Capsule")->getFlightConditions());
+
+	double heatRate = atmosphericFlightConditions->getCurrentAerodynamicHeatRate();
+
+	//std::cout << "Current heat rate: " << heatRate << " W/m^2\n";
+
+	return heatRate;
+}
+
+
 tudat::ShapeOptimization::ShapeOptimization()
 {
-	//std::cout << "ShapeOptimization problem constructed.\n";
+	std::cout << "ShapeOptimization problem constructed.\n";
 	//std::cout << "Setting up Tudat...\n";
 
 	if( !isSpiceLoaded )
@@ -208,7 +223,7 @@ tudat::ShapeOptimization::ShapeOptimization()
 
 }
 
-vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decisionVariables) const
+vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVariables) const
 {
 	//std::cout << "Fitness\n";
 
@@ -317,6 +332,8 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
                                           airspeed_dependent_variable, "Capsule", "Earth" ) );
     dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
                                           aerodynamic_force_coefficients_dependent_variable, "Capsule" ) );
+	dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
+			stagnation_point_heat_flux_dependent_variable, "Capsule" ) );
     // Add variables to get latitude and longitude
     dependentVariablesList.push_back( std::make_shared< BodyAerodynamicAngleVariableSaveSettings >(
                                           "Capsule", tudat::reference_frames::AerodynamicsReferenceFrameAngles::latitude_angle ,"Earth" ) );
@@ -333,10 +350,27 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
 
 
     // Create propagation settings.
-    std::shared_ptr< TranslationalStatePropagatorSettings<  > > propagatorSettings =
+    std::shared_ptr< TranslationalStatePropagatorSettings<  > > translationalPropagatorSettings =
             std::make_shared< TranslationalStatePropagatorSettings< > >(
                 centralBodies, accelerationModelMap, bodiesToPropagate, systemInitialState,
                 terminationSettings, cowell, dependentVariablesToSave );
+
+    double initialHeatLoad = 0;
+
+    std::function<double (double, double)> heatLoadDerivativeFunction = std::bind(&tudat::ShapeOptimization::heatLoadFunction, this,
+    		std::placeholders::_1, std::placeholders::_2, bodyMap_);
+
+    // Heat load propagator
+    std::shared_ptr< CustomStatePropagatorSettings<double, double> > heatLoadPropagatorSettings =
+    		std::make_shared< CustomStatePropagatorSettings<double, double> >(heatLoadDerivativeFunction, initialHeatLoad,
+    				terminationSettings);
+
+	std::vector< std::shared_ptr< SingleArcPropagatorSettings< double > > > propagatorSettingsVector;
+	propagatorSettingsVector.push_back( translationalPropagatorSettings );
+	propagatorSettingsVector.push_back( heatLoadPropagatorSettings );
+
+	std::shared_ptr< PropagatorSettings< double > > propagatorSettings =
+			std::make_shared< MultiTypePropagatorSettings< double > >( propagatorSettingsVector, terminationSettings );
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////            PERFORM PROPAGATION            /////////////////////////////////////////////////////
@@ -350,8 +384,14 @@ vector_double tudat::ShapeOptimization::fitness(const std::vector<double> &decis
     std::map< double, Eigen::VectorXd > dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory( );
 
 	double propagationTime = propagatedStateHistory.rbegin()->first;
+	Eigen::Vector7d finalState = propagatedStateHistory.rbegin()->second;
+	Eigen::Vector7d initialState = propagatedStateHistory.begin()->second;
+	double integratedHeatRateFinal = finalState(6);
+	double integratedHeatRateInit = initialState(6);
 
-    fitness.push_back(propagationTime);
+	//std::cout << "Initial heat load: " << integratedHeatRateInit << ", final: " << integratedHeatRateFinal << "\n";
+
+    fitness.push_back(integratedHeatRateFinal);
     return fitness;
 }
 
@@ -369,4 +409,3 @@ pagmo::thread_safety tudat::ShapeOptimization::get_thread_safety() const
 {
 	return pagmo::thread_safety::none;
 }
-
