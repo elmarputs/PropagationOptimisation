@@ -1,17 +1,19 @@
- #    Copyright (c) 2010-2018, Delft University of Technology
- #    All rigths reserved
- #
- #    This file is part of the Tudat. Redistribution and use in source and
- #    binary forms, with or without modification, are permitted exclusively
- #    under the terms of the Modified BSD license. You should have received
- #    a copy of the license with this file. If not, please or visit:
- #    http://tudat.tudelft.nl/LICENSE.
+#    Copyright (c) 2010-2018, Delft University of Technology
+#    All rigths reserved
+#
+#    This file is part of the Tudat. Redistribution and use in source and
+#    binary forms, with or without modification, are permitted exclusively
+#    under the terms of the Modified BSD license. You should have received
+#    a copy of the license with this file. If not, please or visit:
+#    http://tudat.tudelft.nl/LICENSE.
 
 # Specify minimum CMake version required.
 cmake_minimum_required(VERSION 2.6)
 
 # Specify project name.
 project(PropagationAndOptimization)
+
+#set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # Load UserSettings.txt
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
@@ -37,11 +39,16 @@ endif()
 message(STATUS "<< ${PROJECT_NAME} (${CMAKE_BUILD_TYPE} - ${BUILD_STYLE}) >>")
 
 # Add local module path
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMakeModules")
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/../../../external/CMake" "${PROJECT_SOURCE_DIR}/../../../tudat/Tudat/External/CMake")
 message(STATUS "CMake Module path(s): ${CMAKE_MODULE_PATH}")
 
 # Set compiler based on preferences (e.g. USE_CLANG) and system.
 include(compiler)
+
+# Override Tudat debug flags
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
+
+message(STATUS "Building with debug flags: ${CMAKE_CXX_FLAGS_DEBUG}")
 
 # Define the directory with the source code.
 set(SRCROOT "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -79,12 +86,12 @@ endmacro(setup_unit_test_target)
 
 # Define the install targets to create a distribution.
 if(NOT TUDAT_BUNDLE_DISTRIBUTION_PATH)
-    set(TUDAT_BUNDLE_DISTRIBUTION_PATH "${CODEROOT}")
+  set(TUDAT_BUNDLE_DISTRIBUTION_PATH "${CODEROOT}")
 endif(NOT TUDAT_BUNDLE_DISTRIBUTION_PATH)
 
 if(NOT TEMPLATE_APPLICATION_DISTRIBUTION_PATH)
-    set(TEMPLATE_APPLICATION_DISTRIBUTION_PATH 
-        "${TUDAT_BUNDLE_DISTRIBUTION_PATH}/tudatApplications/satellitePropagatorExamples")
+  set(TEMPLATE_APPLICATION_DISTRIBUTION_PATH
+          "${TUDAT_BUNDLE_DISTRIBUTION_PATH}/tudatApplications/satellitePropagatorExamples")
 endif(NOT TEMPLATE_APPLICATION_DISTRIBUTION_PATH)
 
 # Install Template Application files.
@@ -95,12 +102,12 @@ install(DIRECTORY "${SRCROOT}/"
         PATTERN ".svn" EXCLUDE
         PATTERN ".git" EXCLUDE
         PATTERN ".bzr" EXCLUDE
-)
+        )
 
 # Include the top-level directories.
 include_directories(AFTER
-  "${CODEROOT}"
-)
+        "${CODEROOT}"
+        )
 
 # Find Eigen3 library on local system.
 find_package(Eigen3 REQUIRED)
@@ -124,9 +131,11 @@ if(NOT Boost_USE_STATIC_RUNTIME)
   set(Boost_USE_STATIC_RUNTIME ON)
 endif()
 
+set(BOOST_ROOT "${SRCROOT}/../../../boost")
+
 # Find Boost libraries on local system.
 find_package(Boost 1.55.0
-             COMPONENTS thread date_time system unit_test_framework filesystem regex REQUIRED)
+        COMPONENTS thread date_time system unit_test_framework filesystem regex REQUIRED)
 
 # Include Boost directories.
 # Set CMake flag to suppress Boost warnings (platform-dependent solution).
@@ -138,6 +147,8 @@ endif()
 
 # Find Tudat library on local system.
 find_package(Tudat 2.0 REQUIRED)
+message(STATUS "Tudat include directory: ${TUDAT_INCLUDE_DIR}")
+#include(FindTudat)
 
 # Include Tudat directories.
 # Set CMake flag to suppress Tudat warnings (platform-dependent solution).
@@ -148,6 +159,7 @@ else()
 endif()
 
 # Find CSPICE library on local system.
+option(USE_CSPICE "Use CSpice Libraries" ON)
 find_package(Spice)
 
 # Include CSpice directories.
@@ -175,30 +187,65 @@ else()
   endif( )
 endif( )
 
-# Find PaGMO library on local system.
-if( USE_PAGMO )
-  find_package(PaGMO2)
+option(USE_SOFA "" ON)
+if(USE_SOFA)
+  find_package(Sofa)
+endif()
+option(USE_PAGMO "" ON)
+option(USE_PYGMO "" OFF)
+#
+# PaGMO2
+#
+# Add the PaGMO2 project and build
+if(USE_PAGMO)
+  option(PAGMO_BUILD_TESTS   "Build PaGMO2 with test set." ON)
+  option(PAGMO_BUILD_EXAMPLES "Build PaGMO2 with examples." ON)
+  option(PAGMO_BUILD_TUTORIALS "Build PaGMO2 with tutorials." ON)
+  option(PAGMO_WITH_EIGEN3 "Build PaGMO2 with Eigen 3." ON)
+  if(USE_PYGMO)
+    option(PAGMO_BUILD_PAGMO "Do not build PaGMO2" OFF)
+    option(PAGMO_BUILD_PYGMO "Build PaGMO2 with Python bindings" ON)
+    message(STATUS "this")
+  else(USE_PYGMO)
+    option(PAGMO_BUILD_PAGMO "Build PaGMO2" ON)
+    option(PAGMO_BUILD_PYGMO "Do not build PaGMO2 with Python bindings" OFF)
+    message(STATUS "not this ${PAGMO_BUILD_PAGMO}")
+  endif(USE_PYGMO)
 
-  # Include PaGMO directories.
-  if(NOT APPLE OR APPLE_INCLUDE_FORCE)
-    include_directories(SYSTEM AFTER "${PAGMO_INCLUDE_DIR}")
-  else( )
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem \"${PAGMO_INCLUDE_DIR}\"")
-  endif( )
+  message(STATUS "The things are: ${PAGMO_BUILD_PAGMO} ${PAGMO_BUILD_PYGMO} ${PAGMO_BUILD_TESTS} ${PAGMO_BUILD_EXAMPLES}")
+  unset(pagmo_LIB_DEPENDS CACHE)
+  add_subdirectory( "${PROJECTROOT}pagmo2/" )
+
+
+elseif(USE_PYGMO)
+  option(PAGMO_BUILD_PAGMO "Do not build PaGMO2" OFF)
+  option(PAGMO_BUILD_PYGMO "Do not build PaGMO2 with Python bindings" ON)
+  unset(pagmo_LIB_DEPENDS CACHE)
+  add_subdirectory( "${PROJECTROOT}pagmo2/" )
+endif()
+
+find_package(PaGMO2)
+
+# Include PaGMO directories.
+if(NOT APPLE OR APPLE_INCLUDE_FORCE)
+  include_directories(SYSTEM AFTER "${PAGMO_INCLUDE_DIR}")
+else( )
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem \"${PAGMO_INCLUDE_DIR}\"")
 endif( )
 
 # Set compiler based on preferences (e.g. USE_CLANG) and system.
 include(tudatLinkLibraries)
+message(STATUS "Tudat libraries: ${TUDAT_PROPAGATION_LIBRARIES}")
 
 # Set the source files.
 set(PROPAGATION_OPTIMIZATION_2_DYNAMICS_SOURCES
-    "${SRCROOT}/shapeOptimization.cpp"
-)
+        "${SRCROOT}/shapeOptimization.cpp"
+        )
 
 # Set the header files.
 set(PROPAGATION_OPTIMIZATION_2_DYNAMICS_HEADERS
-    "${SRCROOT}/shapeOptimization.h"
-)
+        "${SRCROOT}/shapeOptimization.h"
+        )
 
 # Add static libraries.
 add_library(tudat_application_propagation_optimization_2 STATIC ${PROPAGATION_OPTIMIZATION_2_DYNAMICS_SOURCES} ${PROPAGATION_OPTIMIZATION_2_DYNAMICS_HEADERS})
