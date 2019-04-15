@@ -78,3 +78,4 @@ cmake-*/
 *.m
 *.asv
 *.fig
+/ShapeOptimization/ccdFitness.txt
