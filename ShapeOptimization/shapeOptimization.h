@@ -32,7 +32,10 @@ namespace tudat
 	    // Empty constructor
         ShapeOptimization();
 
-
+        vector_double::size_type get_nobj() const
+        {
+            return 2;
+        }
         vector_double fitness( const vector_double& ) const;
 
         std::pair<vector_double, vector_double> get_bounds() const;

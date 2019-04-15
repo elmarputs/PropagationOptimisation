@@ -409,9 +409,13 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
 	double integratedHeatRateFinal = finalState(6);
 	double integratedHeatRateInit = initialState(6);
 
+    double integratedFlightRangeFinal = finalState(7);
+    double integratedFlightRangeInit = initialState(7);
+
 	//std::cout << "Initial heat load: " << integratedHeatRateInit << ", final: " << integratedHeatRateFinal << "\n";
 
-    fitness.push_back(integratedHeatRateFinal);
+    fitness.push_back( integratedHeatRateFinal );
+    fitness.push_back( integratedFlightRangeFinal );
     return fitness;
 }
 

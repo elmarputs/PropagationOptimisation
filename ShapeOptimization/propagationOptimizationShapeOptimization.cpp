@@ -11,6 +11,10 @@
 #include "shapeOptimization.h"
 #include <pagmo/algorithms/sade.hpp>
 #include <pagmo/algorithms/de1220.hpp>
+#include <pagmo/algorithms/moead.hpp>
+#include <pagmo/algorithms/nsga2.hpp>
+
+
 #include <pagmo/algorithms/de.hpp>
 #include <pagmo/algorithms/simulated_annealing.hpp>
 #include <pagmo/io.hpp>
@@ -176,11 +180,11 @@ int main( )
 	{
 
 		// Instantiate a pagmo algorithm
-		algorithm algo{de()};
+        algorithm algo{nsga2()};
 		std::cout << "Created pagmo algorithm \n";
 
 
-		pagmo::population::size_type populationSize = 10;
+        pagmo::population::size_type populationSize = 12;
 		std::cout << "Created populationSize \n";
 
 
