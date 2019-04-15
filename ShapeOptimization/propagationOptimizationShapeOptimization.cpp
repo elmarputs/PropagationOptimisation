@@ -145,8 +145,8 @@ void performCompositeDesign(const pagmo::problem &prob, const std::string &fileN
 
 		// Run propagation with control variables for current design iteration and save to map
 		std::vector<double> fitness = prob.fitness(controlVars);
-		Eigen::VectorXd objectives(1);
-		objectives << fitness.at(0);
+		Eigen::VectorXd objectives(2);
+		objectives << fitness.at(0), fitness.at(1);
 		std::cout << "Fitness: " << objectives << std::endl;
 		Eigen::VectorXd outputVector(cv.size() + objectives.size());
 		outputVector << cv, objectives;
@@ -161,7 +161,11 @@ void performCompositeDesign(const pagmo::problem &prob, const std::string &fileN
 int main( )
 {
 
-	bool runOptimisation = true;
+	bool runOptimisation;
+
+	std::cout << "Please enter a 1 if you want to run the optimisation; for CCD enter a 0.\n";
+	std::cin >> runOptimisation;
+
     //std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
     std::string outputPath{__FILE__};
     outputPath = outputPath.substr(0, outputPath.find_last_of("/\\") + 1);
@@ -173,7 +177,10 @@ int main( )
     std::cout<<"Created Problem \n";
 
 	// Perform central composite design
-	//performCompositeDesign(prob, "variableSettings.txt", outputPath);
+	if(!runOptimisation)
+	{
+		performCompositeDesign(prob, "variableSettings.txt", outputPath);
+	}
 
 
 	if(runOptimisation)

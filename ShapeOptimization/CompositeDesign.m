@@ -1,7 +1,7 @@
 %% Generate composite design
 
 % Number of control variables
-N = 2;
+N = 6;
 % Create variable settings matrix
 variableSettings = ccdesign(N);
 
