@@ -9,12 +9,12 @@
  */
 
 #include "shapeOptimization.h"
+
 #include <pagmo/algorithms/sade.hpp>
 #include <pagmo/algorithms/de1220.hpp>
 #include <pagmo/algorithms/moead.hpp>
 #include <pagmo/algorithms/nsga2.hpp>
-
-
+#include <pagmo/algorithms/ihs.hpp>
 #include <pagmo/algorithms/de.hpp>
 #include <pagmo/algorithms/simulated_annealing.hpp>
 #include <pagmo/io.hpp>
@@ -187,7 +187,8 @@ int main( )
 	{
 
 		// Instantiate a pagmo algorithm
-        algorithm algo{nsga2()};
+        //algorithm algo{nsga2()};
+        algorithm algo{ihs()};
 		std::cout << "Created pagmo algorithm \n";
 
 

@@ -164,9 +164,16 @@ inline double tudat::ShapeOptimization::heatLoadFunction( const double time, con
 
 	double heatRate = atmosphericFlightConditions->getCurrentAerodynamicHeatRate();
 
+	double heatRateRF = propagators::computeEquilibriumFayRiddellHeatFluxFromProperties(atmosphericFlightConditions, bodyMap_.at("Capsule")
+	->getVehicleSystems());
+
+	//std::cout << "RF heat rate: " << heatRateRF << " W/m2. Via flight conditions: " << heatRate << " W/m2 \n";
+
+	return heatRateRF;
+
 	//std::cout << "Current heat rate: " << heatRate << " W/m^2\n";
 
-	return heatRate;
+	//return heatRate;
 }
 
 inline double tudat::ShapeOptimization::flightRangeFunction( const double time, const double state, NamedBodyMap& bodyMap_ ) const
@@ -273,6 +280,12 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
     bodyMap_.at("Capsule")->setAerodynamicCoefficientInterface(
                 getCapsuleCoefficientInterface( capsule, outputPath, "output_", true ) );
 
+    std::shared_ptr<system_models::VehicleSystems> vehicleSystems = std::make_shared<system_models::VehicleSystems>(bodyMap_.at("Capsule")
+    		->getBodyMass());
+    vehicleSystems->setWallEmissivity(0.40);
+    vehicleSystems->setNoseRadius(shapeParameters[0]);
+
+    bodyMap_.at("Capsule")->setVehicleSystems(vehicleSystems);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////            CREATE ACCELERATIONS            /////////////////////////////////////////////////////
@@ -355,6 +368,7 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
                                           "Capsule", tudat::reference_frames::AerodynamicsReferenceFrameAngles::flight_path_angle ,"Earth" ) );
     dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
                                           total_aerodynamic_g_load_variable, "Capsule", "Earth" ) );
+
     std::shared_ptr< DependentVariableSaveSettings > dependentVariablesToSave =
             std::make_shared< DependentVariableSaveSettings >( dependentVariablesList, false );
 
@@ -412,8 +426,15 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
 
 	//std::cout << "Initial heat load: " << integratedHeatRateInit << ", final: " << integratedHeatRateFinal << "\n";
 
+	// Objective values
     fitness.push_back( integratedHeatRateFinal );
     fitness.push_back( -1*integratedFlightRangeFinal );
+
+    // Equality constraints
+
+    // Inequality constraints
+    //fitness.push_back( bodyMap_["Capsule"]->getBodyMass() - 64000 );
+
     return fitness;
 }
 

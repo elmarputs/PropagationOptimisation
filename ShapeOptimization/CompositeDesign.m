@@ -12,16 +12,18 @@ writematrix(variableSettings);
 
 ccdResults = readmatrix('ccdFitness.txt');
 
-xValues = ccdResults(:, 2);
-yValues = ccdResults(:, 3);
-x = linspace(min(xValues), max(xValues), 50);
-y = linspace(min(yValues), max(yValues), 50);
-fitness = ccdResults(:, 4);
-[X, Y] = meshgrid(x, y);
-Z = griddata(xValues, yValues, fitness, X, Y);
+decisionVariables = ccdResults(:, 2:7);
+fitness = ccdResults(:, 8:9);
+fitness(:,1) = fitness(:,1)./1e9;
+fitness(:,2) = fitness(:,2)./1e6;
 
-figure;
-surfc(X, Y, Z);
+%x = linspace(min(xValues), max(xValues), 50);
+%y = linspace(min(yValues), max(yValues), 50);
+%[X, Y] = meshgrid(x, y);
+%Z = griddata(xValues, yValues, fitness, X, Y);
+
+%figure;
+%surfc(X, Y, Z);
 
 %% Construct response surface
 
