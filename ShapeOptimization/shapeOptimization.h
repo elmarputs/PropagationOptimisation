@@ -36,6 +36,17 @@ namespace tudat
         {
             return 2;
         }
+
+        vector_double::size_type get_nec() const
+		{
+        	return 0;
+		}
+
+		vector_double::size_type get_nic() const
+		{
+        	return 0;
+		}
+
         vector_double fitness( const vector_double& ) const;
 
         std::pair<vector_double, vector_double> get_bounds() const;
