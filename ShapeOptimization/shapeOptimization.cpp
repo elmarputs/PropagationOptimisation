@@ -159,17 +159,17 @@ public:
         }
         else if( machNumber < 6.0 )
         {
-            currentAngleOfAttack_ = 10 * mathematical_constants::PI / 180.0;
+            currentAngleOfAttack_ = 0 * mathematical_constants::PI / 180.0;
         }
         else
         {
-            double B = (fixedAngleOfAttack_*180/mathematical_constants::PI - 10 - pow(6,3)*10)/(12*(1-pow(6,3)*12/(12*108)));
-            double A = (10 - 12*B)/108;
-            double aoa = A*pow((machNumber - 6.0),3) + B*pow((machNumber-6.0),2) + 10;
+            double B = (fixedAngleOfAttack_*180/mathematical_constants::PI - 0 - pow(6,3)*0)/(12*(1-pow(6,3)*12/(12*108)));
+            double A = (0 - 12*B)/108;
+            double aoa = A*pow((machNumber - 6.0),3) + B*pow((machNumber-6.0),2) + 0;
             currentAngleOfAttack_ = aoa * mathematical_constants::PI / 180.0;
         }
 
-        // currentAngleOfAttack_ = fixedAngleOfAttack_;
+         // currentAngleOfAttack_ = fixedAngleOfAttack_;
 
 
         double airspeed = vehicleFlightConditions_->getCurrentAirspeed();
@@ -223,7 +223,7 @@ public:
 
 
         currentBankAngle_ = sigma;
-
+        //currentBankAngle_ = 0.0;
 
 
 
@@ -271,16 +271,16 @@ inline double tudat::ShapeOptimization::heatLoadFunction( const double time, con
 
 	double heatRate = atmosphericFlightConditions->getCurrentAerodynamicHeatRate();
 
-	double heatRateRF = propagators::computeEquilibriumFayRiddellHeatFluxFromProperties(atmosphericFlightConditions, bodyMap_.at("Capsule")
-	->getVehicleSystems());
+    //double heatRateRF = propagators::computeEquilibriumFayRiddellHeatFluxFromProperties(atmosphericFlightConditions, bodyMap_.at("Capsule")
+    //->getVehicleSystems());
 
 	//std::cout << "RF heat rate: " << heatRateRF << " W/m2. Via flight conditions: " << heatRate << " W/m2 \n";
 
-	return heatRateRF;
+    //return heatRateRF;
 
 	//std::cout << "Current heat rate: " << heatRate << " W/m^2\n";
 
-	//return heatRate;
+    return heatRate;
 }
 
 inline double tudat::ShapeOptimization::flightRangeFunction( const double time, const double state, NamedBodyMap& bodyMap_ ) const
@@ -386,14 +386,14 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
     // Create vehicle aerodynamic coefficients
     bodyMap_.at("Capsule")->setAerodynamicCoefficientInterface(
                 getCapsuleCoefficientInterface( capsule, outputPath, "output_", true ) );
-
+    /*
     std::shared_ptr<system_models::VehicleSystems> vehicleSystems = std::make_shared<system_models::VehicleSystems>(bodyMap_.at("Capsule")
     		->getBodyMass());
     vehicleSystems->setWallEmissivity(0.40);
     vehicleSystems->setNoseRadius(shapeParameters[0]);
 
     bodyMap_.at("Capsule")->setVehicleSystems(vehicleSystems);
-
+    */
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////            CREATE ACCELERATIONS            /////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -523,6 +523,10 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
 
     std::map< double, Eigen::VectorXd > propagatedStateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
     std::map< double, Eigen::VectorXd > dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory( );
+
+
+    std::shared_ptr< tudat::propagators::PropagationTerminationDetails > reason = dynamicsSimulator.getPropagationTerminationReason() ;
+    std::cout<<"Termination reason:"<< reason->getPropagationTerminationReason() <<"\n";
 
 	double propagationTime = propagatedStateHistory.rbegin()->first;
     Eigen::VectorXd finalState = propagatedStateHistory.rbegin()->second;

@@ -129,7 +129,7 @@ int main( )
 		std::cout << "Created pagmo algorithm \n";
 
 
-        pagmo::population::size_type populationSize = 256;
+        pagmo::population::size_type populationSize = 32;
 		std::cout << "Created populationSize \n";
 
 
@@ -138,7 +138,7 @@ int main( )
 		std::cout << "Created archipelago \n";
 
 		// Evolve for 25 generations
-        for (int i = 0; i < 50; i++)
+        for (int i = 0; i < 25; i++)
 		{
 			std::cout << "Iteration " << i << " started \n";
 			arch.evolve();
