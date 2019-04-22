@@ -44,68 +44,6 @@ using namespace tudat::statistics;
 using namespace pagmo;
 
 
-
-/*
-namespace tudat
-{
-
-//! Class to set the aerodynamic angles of the capsule (default: all angles 0)
-class CapsuleAerodynamicGuidance: public aerodynamics::AerodynamicGuidance
-{
-public:
-
-    //! Constructor
-    CapsuleAerodynamicGuidance(
-            const NamedBodyMap bodyMap,
-            const double fixedAngleOfAttack ):bodyMap_( bodyMap ), fixedAngleOfAttack_( fixedAngleOfAttack )
-    {
-    }
-
-    //! The aerodynamic angles are to be computed here
-    void updateGuidance( const double time ) override
-    {
-        currentAngleOfAttack_ = fixedAngleOfAttack_;
-        currentAngleOfSideslip_ = 0.0;
-        currentBankAngle_ = 0.0;
-
-    }
-
-private:
-
-    //! List of body objects that constitute the environment
-    NamedBodyMap bodyMap_;
-
-    //! Fixed angle of attack that is to be used by vehicle
-    double fixedAngleOfAttack_;
-};
-
-}
-*/
-
-/*!
- *   This function computes the entry trajectory of a capsule, where the shape of the capsule is used to determine the vehicle's
- *   aerodynamic force and moment coefficients. The aerodynamic coefficients are based on local inclination methods, and computed
- *   by an object of the HypersonicLocalInclinationAnalysis class.
- *
- *   The present code uses only an aerodynamic force, and a point-mass Earth gravitational acceleration. A class
- *   CapsuleAerodynamicGuidance has been provided, which is currently has no direct functionality: it sets the aerodynamic angles
- *   (attack, sideslip, bank) to 0 degrees. This can (and should) be overridden by the user in favor of something more realistic
- *
- *   Key outputs:
- *
- *   propagatedStateHistory Numerically propagated Cartesian state
- *   dependentVariableHistory Dependent variables (default none) saved during the state propagation of the entry capsule
- *
- *   Input parameters:
- *
- *   shapeParameters: A vector defining the problem as follows (first five parameters describe shape; sixth paramater related
- *      to guidance): Nose radius, Middle radius, Rear length, Rear angle
- *      Side radius, Constant Angle of Attack (see Dirkx and Mooij, 2018 for more details)
- *
- */
-
-//! Execute propagation of orbits of Capsule during entry.
-
 double getVariableSettingFromCodedValue(const double codedValue, const double min, const double max)
 {
 	// Find midpoint and spread
@@ -164,14 +102,14 @@ int main( )
 	bool runOptimisation;
 
 	std::cout << "Please enter a 1 if you want to run the optimisation; for CCD enter a 0.\n";
-	std::cin >> runOptimisation;
+    runOptimisation = true;
 
     //std::string outputPath = tudat_applications::getOutputPath( "ShapeOptimisationGroup" );
     std::string outputPath{__FILE__};
     outputPath = outputPath.substr(0, outputPath.find_last_of("/\\") + 1);
 
     //Set seed for reproducible results
-    pagmo::random_device::set_seed(255);
+    // pagmo::random_device::set_seed(255);
 
     problem prob{ShapeOptimization( ) };
     std::cout<<"Created Problem \n";
@@ -187,12 +125,11 @@ int main( )
 	{
 
 		// Instantiate a pagmo algorithm
-        //algorithm algo{nsga2()};
-        algorithm algo{ihs()};
+        algorithm algo{moead( 1u, "grid", "tchebycheff", 20u, 1.0, 0.5, 20., 0.9, 2u, true, 255 )};
 		std::cout << "Created pagmo algorithm \n";
 
 
-        pagmo::population::size_type populationSize = 12;
+        pagmo::population::size_type populationSize = 256;
 		std::cout << "Created populationSize \n";
 
 
@@ -201,7 +138,7 @@ int main( )
 		std::cout << "Created archipelago \n";
 
 		// Evolve for 25 generations
-		for (int i = 0; i < 25; i++)
+        for (int i = 0; i < 50; i++)
 		{
 			std::cout << "Iteration " << i << " started \n";
 			arch.evolve();

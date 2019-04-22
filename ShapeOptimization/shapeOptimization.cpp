@@ -117,6 +117,7 @@ std::shared_ptr< HypersonicLocalInclinationAnalysis > getCapsuleCoefficientInter
 namespace tudat
 {
 
+
 class CapsuleAerodynamicGuidance: public aerodynamics::AerodynamicGuidance
 {
 public:
@@ -126,16 +127,108 @@ public:
             const NamedBodyMap bodyMap,
             const double fixedAngleOfAttack ):bodyMap_( bodyMap ), fixedAngleOfAttack_( fixedAngleOfAttack )
     {
+        ////                                                                                ////
+        ////    Retrieve relevant objects from environment and set as member variables      ////
+        ////                                                                                ////
+
+        vehicleFlightConditions_ = std::dynamic_pointer_cast< aerodynamics::AtmosphericFlightConditions >(
+                bodyMap.at( "Capsule" )->getFlightConditions( ) );
+
+        earthBody_ = bodyMap.at("Earth");
+        //rotationalVelocityEarth_ = bodyMap.at( "Earth" )->getCurrentAngularVelocityVectorInGlobalFrame( )(2);
+        //rotationalVelocityEarth_ = rotationalVelocityVector.norm( );
+
+        vehicleMass_ = bodyMap.at( "Capsule" )->getBodyMass( );
+        mu_ = bodyMap.at( "Earth" )->getGravityFieldModel( )->getGravitationalParameter( );
+
+
     }
 
     //! The aerodynamic angles are to be computed here
     void updateGuidance( const double time ) override
     {
 
-        currentAngleOfAttack_ = fixedAngleOfAttack_;
-        currentAngleOfSideslip_ = 0.0;
-        currentBankAngle_ = 0.0;
+        rotationalVelocityEarth_ = earthBody_->getCurrentAngularVelocityVectorInGlobalFrame()(2);
 
+        // Algorithm for angle of attack
+        double machNumber = vehicleFlightConditions_->getCurrentMachNumber( );
+
+        if( vehicleFlightConditions_->getCurrentAltitude( ) > 150.0e3 ||  machNumber > 12.0 )
+        {
+            currentAngleOfAttack_ = fixedAngleOfAttack_; // * mathematical_constants::PI / 180.0;
+        }
+        else if( machNumber < 6.0 )
+        {
+            currentAngleOfAttack_ = 10 * mathematical_constants::PI / 180.0;
+        }
+        else
+        {
+            double B = (fixedAngleOfAttack_*180/mathematical_constants::PI - 10 - pow(6,3)*10)/(12*(1-pow(6,3)*12/(12*108)));
+            double A = (10 - 12*B)/108;
+            double aoa = A*pow((machNumber - 6.0),3) + B*pow((machNumber-6.0),2) + 10;
+            currentAngleOfAttack_ = aoa * mathematical_constants::PI / 180.0;
+        }
+
+        // currentAngleOfAttack_ = fixedAngleOfAttack_;
+
+
+        double airspeed = vehicleFlightConditions_->getCurrentAirspeed();
+
+        // Calculate lift
+        Eigen::Vector3d forceCoefficients = vehicleFlightConditions_->getAerodynamicCoefficientInterface( )->getCurrentForceCoefficients( );
+        double referenceArea = vehicleFlightConditions_->getAerodynamicCoefficientInterface( )->getReferenceArea( );
+        double dynamicPressure = vehicleFlightConditions_->getCurrentDynamicPressure( );
+
+        // forceCoefficients(0) -> C_L?
+        double liftForce = forceCoefficients(2) * dynamicPressure * referenceArea;
+
+
+        // Calculate downward component of g
+        double r = vehicleFlightConditions_->getCurrentBodyCenteredBodyFixedState().head(3).norm();
+        double gd = mu_ / (r * r);
+
+
+        double latitude = vehicleFlightConditions_->getAerodynamicAngleCalculator( )->getAerodynamicAngle( tudat::reference_frames::latitude_angle );
+        double heading = vehicleFlightConditions_->getAerodynamicAngleCalculator( )->getAerodynamicAngle( tudat::reference_frames::heading_angle );
+        double flightpath = vehicleFlightConditions_->getAerodynamicAngleCalculator( )->getAerodynamicAngle( tudat::reference_frames::flight_path_angle );
+
+        // Solve equation 3 for bank angle (sigma) to minimise gamma dot
+        //double sigmaMax = tudat::mathematical_constants::PI/2;
+
+        double sigma = 0.0;
+
+
+        double coriolis = 2 * rotationalVelocityEarth_ * airspeed * cos(latitude) * sin(heading);
+        double centripetal = rotationalVelocityEarth_ * rotationalVelocityEarth_ * r * cos(latitude) * (cos(latitude)*cos(flightpath)+sin(flightpath)*sin(latitude)*cos(heading));
+        double weightcomp = - ( gd - ( airspeed * airspeed / r ) ) * cos(flightpath);
+
+        double cosCalculations = ( weightcomp + coriolis + centripetal ) / ( liftForce/vehicleMass_ );
+        // Loop defining how we choose the bank angle
+        if( question_ == 2 && case_ == 1 )
+        {
+            sigma = 0.0;
+        }
+        else if( cosCalculations > 1 )
+        {
+            sigma = tudat::mathematical_constants::PI;
+        }
+        else if( cosCalculations < -1 )
+        {
+            sigma = 0.0;
+        }
+        else
+        {
+            sigma = std::acos( - cosCalculations );
+        }
+
+
+        currentBankAngle_ = sigma;
+
+
+
+
+
+        currentAngleOfSideslip_ = 0.0;
     }
 
 private:
@@ -145,7 +238,21 @@ private:
 
     //! Fixed angle of attack that is to be used by vehicle
     double fixedAngleOfAttack_;
+
+    std::shared_ptr< aerodynamics::AtmosphericFlightConditions > vehicleFlightConditions_;
+    double rotationalVelocityEarth_;
+    double vehicleMass_;
+    double mu_;
+    std::shared_ptr< simulation_setup::Body >earthBody_;
+    unsigned int question_;
+    unsigned int case_;
+
+
 };
+
+
+
+
 
 }
 
