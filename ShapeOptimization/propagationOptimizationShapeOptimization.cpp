@@ -17,6 +17,7 @@
 #include <pagmo/algorithms/ihs.hpp>
 #include <pagmo/algorithms/de.hpp>
 #include <pagmo/algorithms/simulated_annealing.hpp>
+#include "getAlgorithm.h"
 #include <pagmo/io.hpp>
 #include <pagmo/archipelago.hpp>
 #include "saveOptimizationResults.h"
@@ -42,6 +43,7 @@ using namespace tudat;
 using namespace tudat::estimatable_parameters;
 using namespace tudat::statistics;
 using namespace pagmo;
+using namespace tudat_pagmo_applications;
 
 
 double getVariableSettingFromCodedValue(const double codedValue, const double min, const double max)
@@ -98,6 +100,8 @@ void performCompositeDesign(const pagmo::problem &prob, const std::string &fileN
 
 int main( )
 {
+    //Set seed for reproducible results
+    pagmo::random_device::set_seed(255);
 
 	bool runOptimisation;
 
@@ -108,8 +112,7 @@ int main( )
     std::string outputPath{__FILE__};
     outputPath = outputPath.substr(0, outputPath.find_last_of("/\\") + 1);
 
-    //Set seed for reproducible results
-    // pagmo::random_device::set_seed(255);
+
 
     problem prob{ShapeOptimization( ) };
     std::cout<<"Created Problem \n";
@@ -122,48 +125,145 @@ int main( )
 
 
 	if(runOptimisation)
-	{
+    {
+        unsigned int numberOfOptimizers = 1;
+        unsigned int cases = 1;
 
-		// Instantiate a pagmo algorithm
-        algorithm algo{moead( 1u, "grid", "tchebycheff", 20u, 1.0, 0.5, 20., 0.9, 2u, true, 255 )};
-		std::cout << "Created pagmo algorithm \n";
+        for( unsigned int currentQuestion = 1; currentQuestion <= numberOfOptimizers; currentQuestion++ )
+        {
+            if( currentQuestion == 1 )
+            {
+                // Define number of cases for the single optimizer question here
+                cases = 1;
+            }
+            else
+            {
+                // Define cases for multi opmizer question here
+                cases = 1;
+            }
+
+            for( unsigned int currentCase = 1; currentCase <= cases; currentCase++ )
+            {
+            std::cout<<"Initializing case:"<<currentCase<<"\n";
+
+            if( currentQuestion != 1 )
+            {
+            currentCase = 2;
+            }
+            // Instantiate a pagmo algorithm
+            // Create optimization algorithm
+
+            // Start moead optimizer
+            algorithm algo = getMultiObjectiveAlgorithm( currentQuestion-1 );
+            algo.set_seed(255);
+            //algorithm algo{moead( )};
 
 
-        pagmo::population::size_type populationSize = 32;
-		std::cout << "Created populationSize \n";
+            std::cout << "Created pagmo algorithm \n";
+
+            pagmo::population::size_type populationSize = 32;
+            if( currentCase == 1 )
+            {
+                populationSize = 21;
+            }
+            if( currentCase == 2 )
+            {
+                populationSize = 32;
+            }
+            else if( currentCase == 3 )
+            {
+                populationSize = 64;
+            }
+            else if( currentCase == 4 )
+            {
+                populationSize = 128;
+            }
 
 
-		//archipelago arch(4, algo, prob, populationSize);
-		island arch(algo, prob, populationSize);
-		std::cout << "Created archipelago \n";
+            std::cout << "Created populationSize \n";
 
-		// Evolve for 25 generations
-        for (int i = 0; i < 25; i++)
-		{
-			std::cout << "Iteration " << i << " started \n";
-			arch.evolve();
-			while (arch.status() != pagmo::evolve_status::idle &&
-				   arch.status() != pagmo::evolve_status::idle_error)
-			{
-				arch.wait();
-			}
-			std::cout << "Waiting for islands to finish evolution...\n";
-			try
-			{
-				arch.wait_check(); // Raises errors
-			}
-			catch(std::exception& e)
-			{
-				std::cout << "Something went wrong during evolution. Quitting application...\n";
-				std::cout << "Exception: " << e.what() << std::endl;
-				return 1;
-			}
-			std::cout << "Writing champions to file...\n";
-			// Write current iteration results to file
-			//std::cout << arch.get_champions_f()[0][0] << std::endl;
-            //printPopulationToFile(arch.get_champions_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), false);
-            printPopulationToFile(arch.get_population().get_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), true);
-		}
+
+
+            std::cout << "Created archipelago \n";
+
+            int generations = 25;
+            if( currentCase == 5 )
+            {
+                generations = 10;
+            }
+            if( currentCase == 6 )
+            {
+                generations = 25;
+            }
+            if( currentCase == 7)
+            {
+                generations = 50;
+            }
+            if( currentCase == 8 )
+            {
+                generations = 100;
+            }
+            /*
+            //archipelago arch(4, algo, prob, populationSize);
+            island arch(algo, prob, populationSize);
+
+            // Evolve for 25 generations
+            for (int i = 0; i < generations; i++)
+            {
+                std::cout << "Iteration " << i << " started \n";
+                arch.evolve();
+                while (arch.status() != pagmo::evolve_status::idle &&
+                       arch.status() != pagmo::evolve_status::idle_error)
+                {
+                    arch.wait();
+                }
+                std::cout << "Waiting for islands to finish evolution...\n";
+                try
+                {
+                    arch.wait_check(); // Raises errors
+                }
+                catch(std::exception& e)
+                {
+                    std::cout << "Something went wrong during evolution. Quitting application...\n";
+                    std::cout << "Exception: " << e.what() << std::endl;
+                    return 1;
+                }
+                std::cout << "Writing champions to file...\n";
+                // Write current iteration results to file
+                //std::cout << arch.get_champions_f()[0][0] << std::endl;
+                //printPopulationToFile(arch.get_champions_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), false);
+                printPopulationToFile(arch.get_population().get_f(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
+            }
+            */
+            // Create an island with 1024 individuals
+            island isl{algo, prob, populationSize};
+
+            // Evolve for 100 generations
+            for( int i = 0 ; i < generations; i++ )
+            {
+                isl.evolve( );
+                while( isl.status( ) != pagmo::evolve_status::idle &&
+                       isl.status( ) != pagmo::evolve_status::idle_error )
+                {
+                    isl.wait( );
+                }
+                isl.wait_check( ); // Raises errors
+
+                // Write current iteration results to file
+                //printPopulationToFile( isl.get_population( ).get_x( ), "earthMarsLambert_" + std::to_string( j ) + "_" + std::to_string( i ) , false );
+               // printPopulationToFile( isl.get_population( ).get_f( ), "earthMarsLambert_" + std::to_string( j ) + "_" + std::to_string( i ) , true );
+                printPopulationToFile( isl.get_population().get_f(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
+            }
+                //std::cout<<i<<" "<<algorithmIndex<<std::endl;
+
+
+            }
+
+
+
+
+
+        }
 	}
 	// The exit code EXIT_SUCCESS indicates that the program was successfully executed.
 	return EXIT_SUCCESS;

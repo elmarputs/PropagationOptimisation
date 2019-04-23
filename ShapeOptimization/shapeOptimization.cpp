@@ -524,9 +524,9 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
     std::map< double, Eigen::VectorXd > propagatedStateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
     std::map< double, Eigen::VectorXd > dependentVariableHistory = dynamicsSimulator.getDependentVariableHistory( );
 
-
-    std::shared_ptr< tudat::propagators::PropagationTerminationDetails > reason = dynamicsSimulator.getPropagationTerminationReason() ;
-    std::cout<<"Termination reason:"<< reason->getPropagationTerminationReason() <<"\n";
+    // Find Propagation Termination Reason for debugging purposes
+    // std::shared_ptr< tudat::propagators::PropagationTerminationDetails > reason = dynamicsSimulator.getPropagationTerminationReason() ;
+    // std::cout<<"Termination reason:"<< reason->getPropagationTerminationReason() <<"\n";
 
 	double propagationTime = propagatedStateHistory.rbegin()->first;
     Eigen::VectorXd finalState = propagatedStateHistory.rbegin()->second;
