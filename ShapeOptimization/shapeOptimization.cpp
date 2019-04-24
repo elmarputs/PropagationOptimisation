@@ -169,7 +169,7 @@ public:
             currentAngleOfAttack_ = aoa * mathematical_constants::PI / 180.0;
         }
 
-          currentAngleOfAttack_ = fixedAngleOfAttack_;
+         // currentAngleOfAttack_ = fixedAngleOfAttack_;
 
 
         double airspeed = vehicleFlightConditions_->getCurrentAirspeed();
@@ -355,7 +355,7 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
 	double vehicleDensity = 250.0;
 
 	bodyMap_[ "Capsule" ] = std::make_shared< simulation_setup::Body >( );
-    //std::shared_ptr<Body> capsulePtr = bodyMap_["Capsule"];
+	std::shared_ptr<Body> capsulePtr = bodyMap_["Capsule"];
 
 	// Finalize body creation.
 	setGlobalFrameBodyEphemerides( bodyMap_, "Earth", "J2000" );

@@ -20,17 +20,13 @@
 #include "getAlgorithm.h"
 #include <pagmo/io.hpp>
 #include <pagmo/archipelago.hpp>
-
-#include "applicationOutput.h"
 #include "saveOptimizationResults.h"
 
-#include "Tudat/External/SpiceInterface/spiceInterface.h"
-#include "Tudat/InputOutput/basicInputOutput.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////            USING STATEMENTS              //////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/*
+
 using namespace tudat::ephemerides;
 using namespace tudat::interpolators;
 using namespace tudat::numerical_integrators;
@@ -46,7 +42,6 @@ using namespace tudat::mathematical_constants;
 using namespace tudat;
 using namespace tudat::estimatable_parameters;
 using namespace tudat::statistics;
-*/
 using namespace pagmo;
 using namespace tudat_pagmo_applications;
 
@@ -105,10 +100,6 @@ void performCompositeDesign(const pagmo::problem &prob, const std::string &fileN
 
 int main( )
 {
-    //Set seed for reproducible results
-    pagmo::random_device::set_seed( 1 );
-
-    tudat::spice_interface::loadStandardSpiceKernels();
 
 	bool runOptimisation;
 
@@ -121,7 +112,7 @@ int main( )
 
 
 
-    problem prob{ tudat::ShapeOptimization( ) };
+    problem prob{ShapeOptimization( ) };
     std::cout<<"Created Problem \n";
 
 	// Perform central composite design
@@ -133,23 +124,108 @@ int main( )
 
 	if(runOptimisation)
     {
+        unsigned int numberOfOptimizers = 1;
+        unsigned int cases = 1;
+
+        for( unsigned int currentQuestion = 1; currentQuestion <= numberOfOptimizers; currentQuestion++ )
+        {
+            if( currentQuestion == 1 )
+            {
+                // Define number of cases for the single optimizer question here
+                cases = 12;
+            }
+            else
+            {
+                // Define cases for multi opmizer question here
+                cases = 1;
+            }
+
+            for( unsigned int currentCase = 9; currentCase <= cases; currentCase++ )
+            {
+            std::cout<<"Initializing case:"<<currentCase<<"\n";
+
+            if( currentQuestion != 1 )
+            {
+            currentCase = 2;
+            }
+            // Instantiate a pagmo algorithm
+            // Create optimization algorithm
+
+            unsigned int seed = 1;
+            if( currentCase == 9 )
+			{
+            	seed = 10;
+			}
+            else if( currentCase == 10 )
+			{
+            	seed = 100;
+			}
+			else if( currentCase == 11 )
+			{
+				seed = 1000;
+			}
+			else if( currentCase == 12 )
+			{
+				seed = 10000;
+			}
+			//Set seed for reproducible results
+			pagmo::random_device::set_seed(seed);
 
             // Start moead optimizer
-            algorithm algo = getMultiObjectiveAlgorithm( 1 );
+            algorithm algo = getMultiObjectiveAlgorithm( currentQuestion-1 );
+
 
             std::cout << "Created pagmo algorithm \n";
 
             pagmo::population::size_type populationSize = 32;
 
+            if( currentCase == 1 )
+            {
+                populationSize = 16;
+            }
+            if( currentCase == 2 )
+            {
+                populationSize = 32;
+            }
+            else if( currentCase == 3 )
+            {
+                populationSize = 64;
+            }
+            else if( currentCase == 4 )
+            {
+                populationSize = 128;
+            }
+
+
             std::cout << "Created populationSize \n";
 
 
-            //archipelago arch(4, algo, prob, populationSize);
-            island arch(algo, prob, populationSize);
+
             std::cout << "Created archipelago \n";
 
+            int generations = 25;
+            if( currentCase == 5 )
+            {
+                generations = 10;
+            }
+            if( currentCase == 6 )
+            {
+                generations = 25;
+            }
+            if( currentCase == 7)
+            {
+                generations = 50;
+            }
+            if( currentCase == 8 )
+            {
+                generations = 100;
+            }
+
+            //archipelago arch(4, algo, prob, populationSize);
+            island arch(algo, prob, populationSize);
+
             // Evolve for x generations
-            for (int i = 0; i < 25; i++)
+            for (int i = 0; i < generations; i++)
             {
                 std::cout << "Iteration " << i << " started \n";
                 arch.evolve();
@@ -172,11 +248,42 @@ int main( )
                 std::cout << "Writing champions to file...\n";
                 // Write current iteration results to file
                 //std::cout << arch.get_champions_f()[0][0] << std::endl;
-                printPopulationToFile( arch.get_population().get_x(), "SECONDtargetingPropagation_" + std::to_string(1 ) + "_" + std::to_string(1) + "_" + std::to_string(i), false);
-                printPopulationToFile(arch.get_population().get_f(), "SECONDtargetingPropagation_" + std::to_string(1 ) + "_" + std::to_string(1) + "_" + std::to_string(i), true);
+                //printPopulationToFile(arch.get_champions_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), false);
+                printPopulationToFile( arch.get_population().get_x(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), false);
+                printPopulationToFile(arch.get_population().get_f(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
+            }
+            /*
+            // Create an island with 1024 individuals
+            island isl{algo, prob, populationSize};
+
+            // Evolve for 100 generations
+            for( int i = 0 ; i < generations; i++ )
+            {
+                isl.evolve( );
+                while( isl.status( ) != pagmo::evolve_status::idle &&
+                       isl.status( ) != pagmo::evolve_status::idle_error )
+                {
+                    isl.wait( );
+                }
+                isl.wait_check( ); // Raises errors
+
+                // Write current iteration results to file
+                //printPopulationToFile( isl.get_population( ).get_x( ), "earthMarsLambert_" + std::to_string( j ) + "_" + std::to_string( i ) , false );
+               // printPopulationToFile( isl.get_population( ).get_f( ), "earthMarsLambert_" + std::to_string( j ) + "_" + std::to_string( i ) , true );
+                printPopulationToFile( isl.get_population().get_x(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
+
+                printPopulationToFile( isl.get_population().get_f(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
+            }
+                //std::cout<<i<<" "<<algorithmIndex<<std::endl;
+            */
+
             }
 
 
+
+
+
+        }
 	}
 	// The exit code EXIT_SUCCESS indicates that the program was successfully executed.
 	return EXIT_SUCCESS;
