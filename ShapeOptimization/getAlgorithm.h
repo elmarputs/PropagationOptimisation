@@ -21,13 +21,13 @@ pagmo::algorithm getMultiObjectiveAlgorithm( const int index )
 {
     switch( index )
     {
-    case 1:
+    case 0:
     {
         pagmo::algorithm algo{ pagmo::nsga2( ) };
         return algo;
         break;
     }
-    case 0:
+    case 1:
     {
         pagmo::algorithm algo{ pagmo::moead( ) };
         return algo;

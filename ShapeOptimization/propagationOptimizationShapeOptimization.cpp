@@ -126,7 +126,7 @@ int main( )
 
 	if(runOptimisation)
     {
-        unsigned int numberOfOptimizers = 1;
+        unsigned int numberOfOptimizers = 3;
         unsigned int cases = 1;
 
         for( unsigned int currentQuestion = 1; currentQuestion <= numberOfOptimizers; currentQuestion++ )
@@ -134,7 +134,7 @@ int main( )
             if( currentQuestion == 1 )
             {
                 // Define number of cases for the single optimizer question here
-                cases = 1;
+                cases = 8;
             }
             else
             {
@@ -155,16 +155,15 @@ int main( )
 
             // Start moead optimizer
             algorithm algo = getMultiObjectiveAlgorithm( currentQuestion-1 );
-            algo.set_seed(255);
-            //algorithm algo{moead( )};
 
 
             std::cout << "Created pagmo algorithm \n";
 
             pagmo::population::size_type populationSize = 32;
+
             if( currentCase == 1 )
             {
-                populationSize = 21;
+                populationSize = 16;
             }
             if( currentCase == 2 )
             {
@@ -203,11 +202,11 @@ int main( )
             {
                 generations = 100;
             }
-            /*
+
             //archipelago arch(4, algo, prob, populationSize);
             island arch(algo, prob, populationSize);
 
-            // Evolve for 25 generations
+            // Evolve for x generations
             for (int i = 0; i < generations; i++)
             {
                 std::cout << "Iteration " << i << " started \n";
@@ -232,9 +231,10 @@ int main( )
                 // Write current iteration results to file
                 //std::cout << arch.get_champions_f()[0][0] << std::endl;
                 //printPopulationToFile(arch.get_champions_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), false);
+                printPopulationToFile( arch.get_population().get_x(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), false);
                 printPopulationToFile(arch.get_population().get_f(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
             }
-            */
+            /*
             // Create an island with 1024 individuals
             island isl{algo, prob, populationSize};
 
@@ -252,10 +252,12 @@ int main( )
                 // Write current iteration results to file
                 //printPopulationToFile( isl.get_population( ).get_x( ), "earthMarsLambert_" + std::to_string( j ) + "_" + std::to_string( i ) , false );
                // printPopulationToFile( isl.get_population( ).get_f( ), "earthMarsLambert_" + std::to_string( j ) + "_" + std::to_string( i ) , true );
+                printPopulationToFile( isl.get_population().get_x(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
+
                 printPopulationToFile( isl.get_population().get_f(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
             }
                 //std::cout<<i<<" "<<algorithmIndex<<std::endl;
-
+            */
 
             }
 
