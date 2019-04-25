@@ -269,18 +269,18 @@ inline double tudat::ShapeOptimization::heatLoadFunction( const double time, con
 	std::shared_ptr<aerodynamics::AtmosphericFlightConditions> atmosphericFlightConditions;
 	atmosphericFlightConditions = std::dynamic_pointer_cast<aerodynamics::AtmosphericFlightConditions>(bodyMap_.at("Capsule")->getFlightConditions());
 
-	double heatRate = atmosphericFlightConditions->getCurrentAerodynamicHeatRate();
+    //double heatRate = atmosphericFlightConditions->getCurrentAerodynamicHeatRate();
 
-    //double heatRateRF = propagators::computeEquilibriumFayRiddellHeatFluxFromProperties(atmosphericFlightConditions, bodyMap_.at("Capsule")
-    //->getVehicleSystems());
+    double heatRateRF = propagators::computeEquilibriumFayRiddellHeatFluxFromProperties(atmosphericFlightConditions, bodyMap_.at("Capsule")
+    ->getVehicleSystems());
 
 	//std::cout << "RF heat rate: " << heatRateRF << " W/m2. Via flight conditions: " << heatRate << " W/m2 \n";
 
-    //return heatRateRF;
+    return heatRateRF;
 
 	//std::cout << "Current heat rate: " << heatRate << " W/m^2\n";
 
-    return heatRate;
+    //return heatRate;
 }
 
 inline double tudat::ShapeOptimization::flightRangeFunction( const double time, const double state, NamedBodyMap& bodyMap_ ) const
@@ -386,14 +386,14 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
     // Create vehicle aerodynamic coefficients
     bodyMap_.at("Capsule")->setAerodynamicCoefficientInterface(
                 getCapsuleCoefficientInterface( capsule, outputPath, "output_", true ) );
-    /*
+
     std::shared_ptr<system_models::VehicleSystems> vehicleSystems = std::make_shared<system_models::VehicleSystems>(bodyMap_.at("Capsule")
     		->getBodyMass());
     vehicleSystems->setWallEmissivity(0.40);
     vehicleSystems->setNoseRadius(shapeParameters[0]);
 
     bodyMap_.at("Capsule")->setVehicleSystems(vehicleSystems);
-    */
+
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////            CREATE ACCELERATIONS            /////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

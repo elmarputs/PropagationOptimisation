@@ -124,10 +124,10 @@ int main( )
 
 	if(runOptimisation)
     {
-        unsigned int numberOfOptimizers = 9;
+        unsigned int numberOfOptimizers = 15;
         unsigned int cases = 1;
 
-        for( unsigned int currentQuestion = 1; currentQuestion <= numberOfOptimizers; currentQuestion++ )
+        for( unsigned int currentQuestion = 1; currentQuestion <= 9; currentQuestion++ )
         {
             if( currentQuestion == 1 )
             {
