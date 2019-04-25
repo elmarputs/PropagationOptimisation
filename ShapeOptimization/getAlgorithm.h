@@ -39,6 +39,78 @@ pagmo::algorithm getMultiObjectiveAlgorithm( const int index )
         return algo;
         break;
     }
+    case 3:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.66, 10., 0.01,  50.,pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
+    case 4:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.33, 10., 0.01,  50.,pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
+    case 5:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.0, 10., 0.01,  50.,pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
+    case 6:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.95, 10., 0.05,  50.,pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
+    case 7:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.95, 10., 0.1,  50.,pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
+    case 8:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.95, 10., 0.5,  50.,pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
+    case 9:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.95, 0.1, 0.01,  50.,pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
+    case 10:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.95, 1, 0.01,  50.,pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
+    case 11:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.95, 50., 0.01,  50.,pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
+    case 12:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.95, 10., 0.01,  0.1, pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
+    case 13:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.95, 10., 0.01,  1., pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
+    case 14:
+    {
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.95, 10., 0.01,  10., pagmo::random_device::next()) };
+        return algo;
+        break;
+    }
     default:
     {
         throw std::runtime_error( "Error, multi-objective pagmo algorithm " + std::to_string( index ) + " was not found." );

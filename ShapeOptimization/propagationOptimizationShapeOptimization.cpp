@@ -124,7 +124,7 @@ int main( )
 
 	if(runOptimisation)
     {
-        unsigned int numberOfOptimizers = 1;
+        unsigned int numberOfOptimizers = 9;
         unsigned int cases = 1;
 
         for( unsigned int currentQuestion = 1; currentQuestion <= numberOfOptimizers; currentQuestion++ )
@@ -140,7 +140,7 @@ int main( )
                 cases = 1;
             }
 
-            for( unsigned int currentCase = 9; currentCase <= cases; currentCase++ )
+            for( unsigned int currentCase = 1; currentCase <= cases; currentCase++ )
             {
             std::cout<<"Initializing case:"<<currentCase<<"\n";
 
@@ -151,6 +151,7 @@ int main( )
             // Instantiate a pagmo algorithm
             // Create optimization algorithm
 
+            // Loop over different rng seeds
             unsigned int seed = 1;
             if( currentCase == 9 )
 			{
@@ -171,12 +172,13 @@ int main( )
 			//Set seed for reproducible results
 			pagmo::random_device::set_seed(seed);
 
-            // Start moead optimizer
+            // Set the required algorithm based on custom getAlgorithm.h
             algorithm algo = getMultiObjectiveAlgorithm( currentQuestion-1 );
 
 
             std::cout << "Created pagmo algorithm \n";
 
+            // Loop to switch between different population Sizes
             pagmo::population::size_type populationSize = 32;
 
             if( currentCase == 1 )
@@ -202,6 +204,8 @@ int main( )
 
 
             std::cout << "Created archipelago \n";
+
+            // Loop to switch between number of generations
 
             int generations = 25;
             if( currentCase == 5 )
