@@ -117,8 +117,9 @@ pagmo::algorithm getMultiObjectiveAlgorithm( const int index )
     }
         // Optimal Algorithm settings
     case 15:
+    case 16:
     {
-        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.95, 90., 0.05,  10., pagmo::random_device::next()) };
+        pagmo::algorithm algo{ pagmo::nsga2( 1u, 0.95, 10., 0.01,  50., pagmo::random_device::next()) };
         return algo;
         break;
     }

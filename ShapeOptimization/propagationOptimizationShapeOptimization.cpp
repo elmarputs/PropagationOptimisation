@@ -124,10 +124,10 @@ int main( )
 
 	if(runOptimisation)
     {
-        unsigned int numberOfOptimizers = 15;
+        unsigned int numberOfOptimizers = 16;
         unsigned int cases = 1;
 
-        for( unsigned int currentQuestion = 1; currentQuestion <= 9; currentQuestion++ )
+        for( unsigned int currentQuestion = 16; currentQuestion <= numberOfOptimizers; currentQuestion++ )
         {
             if( currentQuestion == 1 )
             {
@@ -142,7 +142,7 @@ int main( )
 
             for( unsigned int currentCase = 1; currentCase <= cases; currentCase++ )
             {
-            std::cout<<"Initializing case:"<<currentCase<<"\n";
+            std::cout<<"Running Question:"<<currentQuestion<<", Initializing case:"<<currentCase<<"\n";
 
             if( currentQuestion != 1 )
             {
@@ -198,6 +198,17 @@ int main( )
                 populationSize = 128;
             }
 
+            // Set Values for 'optimal run'
+            if( currentQuestion == 16 )
+            {
+                populationSize = 64;
+            }
+
+            // Set population for the Monte Carlo analysis of the 'optimum' value
+            if( currentQuestion == 17 )
+            {
+                populationSize = 1000;
+            }
 
             std::cout << "Created populationSize \n";
 
@@ -223,6 +234,17 @@ int main( )
             if( currentCase == 8 )
             {
                 generations = 100;
+            }
+            // Set values for "optimal run"
+            if( currentQuestion == 16 )
+            {
+                generations = 100;
+            }
+
+            // Set values for Robustness analysis
+            if( currentQuestion == 17 )
+            {
+                generations = 1;
             }
 
             //archipelago arch(4, algo, prob, populationSize);
@@ -251,35 +273,10 @@ int main( )
                 }
                 std::cout << "Writing champions to file...\n";
                 // Write current iteration results to file
-                //std::cout << arch.get_champions_f()[0][0] << std::endl;
-                //printPopulationToFile(arch.get_champions_f(), "targetingPropagation_" + std::to_string(i) + "_" + std::to_string(i), false);
-                printPopulationToFile( arch.get_population().get_x(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), false);
-                printPopulationToFile(arch.get_population().get_f(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
+                printPopulationToFile( arch.get_population().get_x(), "OPTIMALtargetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), false);
+                printPopulationToFile(arch.get_population().get_f(), "OPTIMALtargetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
             }
-            /*
-            // Create an island with 1024 individuals
-            island isl{algo, prob, populationSize};
 
-            // Evolve for 100 generations
-            for( int i = 0 ; i < generations; i++ )
-            {
-                isl.evolve( );
-                while( isl.status( ) != pagmo::evolve_status::idle &&
-                       isl.status( ) != pagmo::evolve_status::idle_error )
-                {
-                    isl.wait( );
-                }
-                isl.wait_check( ); // Raises errors
-
-                // Write current iteration results to file
-                //printPopulationToFile( isl.get_population( ).get_x( ), "earthMarsLambert_" + std::to_string( j ) + "_" + std::to_string( i ) , false );
-               // printPopulationToFile( isl.get_population( ).get_f( ), "earthMarsLambert_" + std::to_string( j ) + "_" + std::to_string( i ) , true );
-                printPopulationToFile( isl.get_population().get_x(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
-
-                printPopulationToFile( isl.get_population().get_f(), "targetingPropagation_" + std::to_string(currentQuestion ) + "_" + std::to_string(currentCase) + "_" + std::to_string(i), true);
-            }
-                //std::cout<<i<<" "<<algorithmIndex<<std::endl;
-            */
 
             }
 
