@@ -201,7 +201,7 @@ int main( )
             // Set Values for 'optimal run'
             if( currentQuestion == 16 )
             {
-                populationSize = 64;
+                populationSize = 8;
             }
 
             // Set population for the Monte Carlo analysis of the 'optimum' value
@@ -238,7 +238,7 @@ int main( )
             // Set values for "optimal run"
             if( currentQuestion == 16 )
             {
-                generations = 100;
+                generations = 1;
             }
 
             // Set values for Robustness analysis

@@ -148,7 +148,7 @@ public:
     void updateGuidance( const double time ) override
     {
         // TEMPORARY FIX TO OBTAIN OUTPUTS
-        fixedAngleOfAttack_ = 0.048619431524615;
+        //fixedAngleOfAttack_ = 0.048619431524615;
         rotationalVelocityEarth_ = earthBody_->getCurrentAngularVelocityVectorInGlobalFrame()(2);
 
         // Algorithm for angle of attack
@@ -166,7 +166,7 @@ public:
         {
             double B = (fixedAngleOfAttack_*180/mathematical_constants::PI - 0 - pow(6,3)*0)/(12*(1-pow(6,3)*12/(12*108)));
             double A = (0 - 12*B)/108;
-            double aoa = A*pow((machNumber - 6.0),3) + B*pow((machNumber-6.0),2) + 0;
+            double aoa = -1*(A*pow((machNumber - 6.0),3) + B*pow((machNumber-6.0),2) + 0);
             currentAngleOfAttack_ = aoa * mathematical_constants::PI / 180.0;
         }
 
@@ -365,12 +365,12 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
 
     vector_double fitness;
 
-    //std::vector<double> shapeParameters = decisionVariables;
+    std::vector<double> shapeParameters = decisionVariables;
 
     //Temporary values to obtain the flight parameters
 
-    std::vector< double > shapeParameters =
-            { 8.395074713222693, 2.718209058425671, 0.200568003033042, -0.302674762298538, 0.349473115033317, 0.048619431524615 };
+    //std::vector< double > shapeParameters =
+    //        { 8.395074713222693, 2.718209058425671, 0.200568003033042, -0.302674762298538, 0.349473115033317, 0.048619431524615 };
     double limitLength = ( shapeParameters[ 1 ] - shapeParameters[ 4 ] * ( 1.0 - std::cos( shapeParameters[ 3 ] ) ) ) /
             std::tan( -shapeParameters[ 3 ] );
 
@@ -448,18 +448,6 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
     systemInitialState = transformStateToGlobalFrame(
                 systemInitialState, simulationStartEpoch, bodyMap_.at( "Earth" )->getRotationalEphemeris( ) );
 
-    // Define termination conditions
-    std::vector< std::shared_ptr< PropagationTerminationSettings > > terminationSettingsList;
-    std::shared_ptr< SingleDependentVariableSaveSettings > terminationDependentVariable =
-            std::make_shared< SingleDependentVariableSaveSettings >( altitude_dependent_variable, "Capsule", "Earth" );
-    terminationSettingsList.push_back(
-                std::make_shared< PropagationDependentVariableTerminationSettings >(
-                    terminationDependentVariable, 25.0E3, true ) );
-    terminationSettingsList.push_back( std::make_shared< PropagationTimeTerminationSettings >(
-                                           24.0 * 3600.0 ) );
-    std::shared_ptr< PropagationTerminationSettings > terminationSettings = std::make_shared<
-            PropagationHybridTerminationSettings >( terminationSettingsList, true );
-
     // Define dependent variables
     std::vector< std::shared_ptr< SingleDependentVariableSaveSettings > > dependentVariablesList;
     dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
@@ -467,11 +455,12 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
     dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
                                           airspeed_dependent_variable, "Capsule", "Earth" ) );
     dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
-                                          aerodynamic_force_coefficients_dependent_variable, "Capsule" ) );
-	dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
-			stagnation_point_heat_flux_dependent_variable, "Capsule" ) );
+                                          aerodynamic_force_coefficients_dependent_variable, "Capsule", "Earth" ) );
     dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
-            total_aerodynamic_g_load_variable, "Capsule" ) );
+            stagnation_point_heat_flux_dependent_variable, "Capsule", "Earth" ) );
+    dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
+            total_aerodynamic_g_load_variable, "Capsule", "Earth") );
+
 
     // Add variables to get latitude and longitude
     dependentVariablesList.push_back( std::make_shared< BodyAerodynamicAngleVariableSaveSettings >(
@@ -490,16 +479,31 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
                                           "Capsule",tudat::reference_frames::AerodynamicsReferenceFrameAngles::angle_of_attack ,"Earth" ) );
     dependentVariablesList.push_back( std::make_shared< BodyAerodynamicAngleVariableSaveSettings >(
                 "Capsule",tudat::reference_frames::AerodynamicsReferenceFrameAngles::angle_of_sideslip , "Earth" ) );
-
+    dependentVariablesList.push_back( std::make_shared< SingleDependentVariableSaveSettings >(
+            mach_number_dependent_variable, "Capsule", "Earth") );
     std::shared_ptr< DependentVariableSaveSettings > dependentVariablesToSave =
-            std::make_shared< DependentVariableSaveSettings >( dependentVariablesList, false );
+            std::make_shared< DependentVariableSaveSettings >( dependentVariablesList );
+
+
+    // Define termination conditions
+    std::vector< std::shared_ptr< PropagationTerminationSettings > > terminationSettingsList;
+    std::shared_ptr< SingleDependentVariableSaveSettings > terminationDependentVariable =
+            std::make_shared< SingleDependentVariableSaveSettings >( altitude_dependent_variable, "Capsule", "Earth" );
+    terminationSettingsList.push_back(
+                std::make_shared< PropagationDependentVariableTerminationSettings >(
+                    terminationDependentVariable, 25.0E3, true ) );
+    terminationSettingsList.push_back( std::make_shared< PropagationTimeTerminationSettings >(
+                                           24.0 * 3600.0 ) );
+    std::shared_ptr< PropagationTerminationSettings > terminationSettings = std::make_shared<
+            PropagationHybridTerminationSettings >( terminationSettingsList, true );
+
 
 
     // Create propagation settings.
     std::shared_ptr< TranslationalStatePropagatorSettings<  > > translationalPropagatorSettings =
             std::make_shared< TranslationalStatePropagatorSettings< > >(
                 centralBodies, accelerationModelMap, bodiesToPropagate, systemInitialState,
-                terminationSettings, cowell, dependentVariablesToSave );
+                terminationSettings, cowell );
 
     double initialHeatLoad = 0;
     double initialFlightRange = 0;
@@ -513,7 +517,7 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
     // Heat load propagator
     std::shared_ptr< CustomStatePropagatorSettings<double, double> > heatLoadPropagatorSettings =
     		std::make_shared< CustomStatePropagatorSettings<double, double> >(heatLoadDerivativeFunction, initialHeatLoad,
-    				terminationSettings);
+                    terminationSettings);
 
     // Flight range propagator
     std::shared_ptr< CustomStatePropagatorSettings<double, double> > flightRangePropagatorSettings =
@@ -526,7 +530,7 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
     propagatorSettingsVector.push_back( flightRangePropagatorSettings );
 
 	std::shared_ptr< PropagatorSettings< double > > propagatorSettings =
-			std::make_shared< MultiTypePropagatorSettings< double > >( propagatorSettingsVector, terminationSettings );
+            std::make_shared< MultiTypePropagatorSettings< double > >( propagatorSettingsVector, terminationSettings, dependentVariablesToSave );
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////            PERFORM PROPAGATION            /////////////////////////////////////////////////////
@@ -564,13 +568,18 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
     double timeMaxgLoad;
     double timeMaxStagFlux;
 
+
     for( std::map< double, Eigen::VectorXd >::const_iterator stateIterator = dependentVariableHistory.begin( );
          stateIterator != dependentVariableHistory.end( ); stateIterator++ )
     {
         double time2 = stateIterator->first;
         Eigen::MatrixXd depVariables = stateIterator->second;
         stagnationHeatFlux = depVariables(5);
+        std::cout<<"Stagnation Heat flux:"<<stagnationHeatFlux<<"\n";
+
         gLoad = depVariables(6);
+        std::cout<<"G load:"<<gLoad<<"\n";
+
 
         if( maxgLoad < gLoad )
         {
@@ -590,7 +599,7 @@ vector_double tudat::ShapeOptimization::fitness(const vector_double& decisionVar
 
 
 
-    if( maxStagHeatFlux > 7.0E5 || maxgLoad > 8.0 )
+    if( maxStagHeatFlux > 1.0E7 || maxgLoad > 8.0 )
     {
         fitness.push_back( integratedHeatRateFinal*1000 );
         fitness.push_back( -1*integratedFlightRangeFinal*0.001 );
